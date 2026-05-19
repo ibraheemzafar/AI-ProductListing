@@ -1,0 +1,37 @@
+[project]
+name = "ai-product-listing-api"
+version = "0.1.0"
+description = "FastAPI service for the AI Product Listing Generator."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115.6",
+  "pydantic-settings>=2.7.1",
+  "uvicorn[standard]>=0.34.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "httpx>=0.28.1",
+  "mypy>=1.14.1",
+  "pytest>=8.3.4",
+  "pytest-asyncio>=0.25.2",
+  "ruff>=0.9.1"
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = []
+

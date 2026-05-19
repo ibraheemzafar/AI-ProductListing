@@ -1,0 +1,12 @@
+{
+  "name": "@ai-product-listing/api",
+  "private": true,
+  "scripts": {
+    "build": "echo API scaffold ready",
+    "dev": "uvicorn app.main:app --reload",
+    "lint": "ruff check .",
+    "test": "pytest",
+    "typecheck": "mypy ."
+  }
+}
+

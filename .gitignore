@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.turbo/
+
+# Next.js
+.next/
+out/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+coverage/
+htmlcov/
+
+# System
+.DS_Store
+Thumbs.db
+
