@@ -10,7 +10,8 @@ The repository follows the project docs in `docs/`:
 - Version-controlled prompt package
 - Docker-ready local infrastructure
 
-No product business logic is implemented yet.
+Authentication is implemented for the MVP. Product uploads and AI generation are not implemented
+yet.
 
 ## Workspace Layout
 
@@ -47,9 +48,21 @@ Set service-specific values before implementing connected workflows:
 - `NEXT_PUBLIC_API_BASE_URL`
 - `DATABASE_URL`
 - `REDIS_URL`
+- `JWT_SECRET_KEY`
+- `SESSION_COOKIE_NAME`
 - `OPENAI_API_KEY`
 - `AWS_REGION`
 - `AWS_S3_BUCKET`
+
+For local authentication, configure the API URL and a long JWT secret:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+JWT_SECRET_KEY=replace-with-a-long-random-local-secret
+```
+
+The backend hashes passwords, persists users in PostgreSQL, and sets an HTTP-only JWT session
+cookie named by `SESSION_COOKIE_NAME`.
 
 ## Install Dependencies
 
@@ -78,8 +91,14 @@ Run individual apps:
 
 ```bash
 pnpm --filter @ai-product-listing/web dev
-cd apps/api && uvicorn app.main:app --reload
+pnpm --filter @ai-product-listing/api dev
 ```
+
+Visit:
+
+- Login: `http://localhost:3000/login`
+- Protected dashboard: `http://localhost:3000/dashboard`
+- API session check: `http://localhost:8000/api/v1/auth/me`
 
 ## Quality Checks
 
@@ -92,10 +111,9 @@ pnpm build
 API checks:
 
 ```bash
-cd apps/api
-ruff check .
-mypy .
-pytest
+pnpm --filter @ai-product-listing/api lint
+pnpm --filter @ai-product-listing/api typecheck
+pnpm --filter @ai-product-listing/api test
 ```
 
 ## Docker
@@ -109,5 +127,12 @@ Services:
 
 - Web: `http://localhost:3000`
 - API: `http://localhost:8000/api/v1/health`
+- Login: `http://localhost:3000/login`
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6379`
+
+The Docker PostgreSQL service runs `infra/postgres/init/001_auth.sql` on first database creation to
+create the auth `users` table.
+
+If you previously ran the Google-auth scaffold, recreate the local Postgres volume so the `users`
+table is rebuilt with `password_hash` instead of `google_subject`.

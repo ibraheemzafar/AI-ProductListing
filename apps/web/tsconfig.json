@@ -7,7 +7,9 @@
     "module": "ESNext",
     "noEmit": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@ai-product-listing/types": ["../../packages/types/src/index.ts"],
+      "@ai-product-listing/ui": ["../../packages/ui/src/index.ts"]
     },
     "plugins": [
       {
@@ -18,4 +20,3 @@
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }
-

@@ -10,6 +10,7 @@ out/
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -26,8 +27,8 @@ dist/
 build/
 coverage/
 htmlcov/
+*.tsbuildinfo
 
 # System
 .DS_Store
 Thumbs.db
-
