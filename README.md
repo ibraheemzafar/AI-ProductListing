@@ -48,6 +48,8 @@ Set service-specific values before implementing connected workflows:
 - `NEXT_PUBLIC_API_BASE_URL`
 - `DATABASE_URL`
 - `REDIS_URL`
+- `LOCAL_STORAGE_PATH`
+- `PUBLIC_STORAGE_URL`
 - `JWT_SECRET_KEY`
 - `SESSION_COOKIE_NAME`
 - `OPENAI_API_KEY`
@@ -59,6 +61,8 @@ For local authentication, configure the API URL and a long JWT secret:
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 JWT_SECRET_KEY=replace-with-a-long-random-local-secret
+LOCAL_STORAGE_PATH=storage
+PUBLIC_STORAGE_URL=http://localhost:8000/uploads
 ```
 
 The backend hashes passwords, persists users in PostgreSQL, and sets an HTTP-only JWT session
@@ -98,6 +102,7 @@ Visit:
 
 - Login: `http://localhost:3000/login`
 - Protected dashboard: `http://localhost:3000/dashboard`
+- Product image upload: `http://localhost:3000/dashboard/upload`
 - API session check: `http://localhost:8000/api/v1/auth/me`
 
 ## Quality Checks
@@ -132,7 +137,11 @@ Services:
 - Redis: `localhost:6379`
 
 The Docker PostgreSQL service runs `infra/postgres/init/001_auth.sql` on first database creation to
-create the auth `users` table.
+create the auth `users` table, and `infra/postgres/init/002_product_uploads.sql` to create
+`products` and `product_images`.
 
 If you previously ran the Google-auth scaffold, recreate the local Postgres volume so the `users`
 table is rebuilt with `password_hash` instead of `google_subject`.
+
+For an existing local Postgres database, run both SQL files manually. The upload API stores local
+files in `LOCAL_STORAGE_PATH` and returns image URLs using `PUBLIC_STORAGE_URL`.

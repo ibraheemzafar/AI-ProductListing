@@ -28,6 +28,7 @@ build/
 coverage/
 htmlcov/
 *.tsbuildinfo
+storage/
 
 # System
 .DS_Store

@@ -24,3 +24,22 @@ export interface AuthenticatedUser {
 export interface AuthSession {
   user: AuthenticatedUser;
 }
+
+export interface UploadedProductImage {
+  id: string;
+  productId: string;
+  originalFilename: string;
+  imageUrl: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export interface ProductImageList {
+  images: UploadedProductImage[];
+}
+
+export interface ProductUploadResult {
+  productId: string;
+  images: UploadedProductImage[];
+}

@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     api_cors_origins: str = "http://localhost:3000"
     database_url: str = ""
     redis_url: str = ""
+    local_storage_path: str = "storage"
+    public_storage_url: str = "http://localhost:8000/uploads"
     jwt_secret_key: str = "dev-only-change-me-please-use-32-plus-characters"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
