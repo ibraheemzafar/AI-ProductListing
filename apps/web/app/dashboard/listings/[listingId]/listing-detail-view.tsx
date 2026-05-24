@@ -71,8 +71,9 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     useState<MarketplaceOptimizationResult | null>(null);
   const [marketplaceErrorMessage, setMarketplaceErrorMessage] = useState<string | null>(null);
   const [enhancedImage, setEnhancedImage] = useState<EnhancedImageResult | null>(null);
-  const [imageEnhancementErrorMessage, setImageEnhancementErrorMessage] =
-    useState<string | null>(null);
+  const [imageEnhancementErrorMessage, setImageEnhancementErrorMessage] = useState<string | null>(
+    null,
+  );
   const [isSceneGenerating, setIsSceneGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<GeneratedSceneImage | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedSceneImage[]>([]);
@@ -286,7 +287,8 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
         current.map((item) => ({
           ...item,
           isAccepted: item.id === result.acceptedVersion.id,
-          acceptedAt: item.id === result.acceptedVersion.id ? result.acceptedVersion.acceptedAt : null,
+          acceptedAt:
+            item.id === result.acceptedVersion.id ? result.acceptedVersion.acceptedAt : null,
         })),
       );
       showToast('Improved version accepted.');
@@ -322,17 +324,17 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[360px_minmax(0,1fr)]">
-      <section className="grid gap-5">
+    <div className="grid gap-8 lg:grid-cols-[380px_minmax(0,1fr)]">
+      <section className="grid content-start gap-5">
         <img
           alt={listing.image.originalFilename}
-          className="aspect-square w-full rounded-md object-cover"
+          className="aspect-square w-full rounded-lg border border-white/10 object-cover shadow-[0_24px_90px_-60px_rgba(0,0,0,1)]"
           src={listing.image.imageUrl}
         />
-        <div className="rounded-md border border-border p-4">
+        <div className="glass-panel p-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-medium">Product analysis</h2>
-            <span className="rounded bg-muted px-2 py-1 text-xs capitalize text-muted-foreground">
+            <h2 className="text-lg font-semibold text-white">Product analysis</h2>
+            <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-semibold capitalize text-muted-foreground">
               {listing.status}
             </span>
           </div>
@@ -348,7 +350,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
             ].map(([label, value]) => (
               <div key={label} className="grid grid-cols-[130px_minmax(0,1fr)] gap-3">
                 <dt className="text-muted-foreground">{label}</dt>
-                <dd className="min-w-0 break-words font-medium">{value}</dd>
+                <dd className="min-w-0 break-words font-medium text-white">{value}</dd>
               </div>
             ))}
           </dl>
@@ -357,12 +359,12 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
 
       <section className="grid gap-4">
         {toastMessage ? (
-          <div className="rounded-md border border-border bg-muted px-4 py-3 text-sm">
+          <div className="glass-panel fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 text-sm text-white">
             {toastMessage}
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-3 rounded-md border border-border p-4">
+        <div className="glass-panel flex flex-wrap gap-3 p-4">
           <Button type="button" onClick={copyAll}>
             <Clipboard className="mr-2 size-4" aria-hidden="true" />
             {copiedKey === 'copy-all' ? 'Copied All' : 'Copy All'}
@@ -396,7 +398,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
           <div className="flex flex-wrap gap-2">
             <select
               aria-label="Marketplace"
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className="field-surface h-10"
               value={selectedMarketplace}
               onChange={(event) => setSelectedMarketplace(event.target.value as Marketplace)}
               disabled={isMarketplaceOptimizing}
@@ -418,7 +420,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
           <div className="flex flex-wrap gap-2">
             <select
               aria-label="Image enhancement"
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className="field-surface h-10"
               value={selectedEnhancement}
               onChange={(event) =>
                 setSelectedEnhancement(event.target.value as ImageEnhancementOperation)
@@ -437,7 +439,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
           <div className="grid w-full gap-2 md:grid-cols-[220px_minmax(0,1fr)_auto]">
             <select
               aria-label="Image generation category"
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              className="field-surface h-10"
               value={selectedSceneCategory}
               onChange={(event) => setSelectedSceneCategory(event.target.value as ScenePreset)}
               disabled={isSceneGenerating}
@@ -454,7 +456,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
             {selectedSceneCategory === 'custom_prompt' ? (
               <input
                 aria-label="Custom image generation prompt"
-                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 text-sm"
+                className="field-surface h-10 min-w-0"
                 value={customScenePrompt}
                 onChange={(event) => setCustomScenePrompt(event.target.value)}
                 placeholder="Describe the generated product scene"
@@ -477,13 +479,11 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
           </div>
         </div>
 
-        {seoErrorMessage ? <p className="text-sm text-red-600">{seoErrorMessage}</p> : null}
+        {seoErrorMessage ? <ErrorMessage message={seoErrorMessage} /> : null}
 
         {seoAnalysis ? <SeoAnalysisPanel result={seoAnalysis} /> : null}
 
-        {improvementErrorMessage ? (
-          <p className="text-sm text-red-600">{improvementErrorMessage}</p>
-        ) : null}
+        {improvementErrorMessage ? <ErrorMessage message={improvementErrorMessage} /> : null}
 
         {improvement ? (
           <BeforeAfterComparison
@@ -493,9 +493,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
           />
         ) : null}
 
-        {marketplaceErrorMessage ? (
-          <p className="text-sm text-red-600">{marketplaceErrorMessage}</p>
-        ) : null}
+        {marketplaceErrorMessage ? <ErrorMessage message={marketplaceErrorMessage} /> : null}
 
         {marketplaceOptimization ? (
           <MarketplaceOptimizationPanel
@@ -506,7 +504,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
         ) : null}
 
         {imageEnhancementErrorMessage ? (
-          <p className="text-sm text-red-600">{imageEnhancementErrorMessage}</p>
+          <ErrorMessage message={imageEnhancementErrorMessage} />
         ) : null}
 
         {isImageEnhancing ? <ImageProcessingProgress /> : null}
@@ -519,9 +517,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
           />
         ) : null}
 
-        {generatedImageErrorMessage ? (
-          <p className="text-sm text-red-600">{generatedImageErrorMessage}</p>
-        ) : null}
+        {generatedImageErrorMessage ? <ErrorMessage message={generatedImageErrorMessage} /> : null}
 
         {isSceneGenerating ? <ImageProcessingProgress label="Generating image" /> : null}
 
@@ -589,18 +585,18 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
 
 function ImageProcessingProgress({ label = 'Image processing' }: { label?: string }) {
   return (
-    <section className="rounded-md border border-border p-4">
+    <section className="glass-panel p-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-medium">{label}</h2>
+        <h2 className="text-base font-semibold text-white">{label}</h2>
         <span className="text-sm text-muted-foreground">In progress</span>
       </div>
       <div className="mt-4 h-2 overflow-hidden rounded bg-muted">
-        <div className="h-full w-2/3 animate-pulse bg-primary" />
+        <div className="h-full w-2/3 animate-pulse bg-gradient-to-r from-primary to-accent" />
       </div>
       <ol className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-        <li className="rounded bg-muted px-3 py-2">Preparing image</li>
-        <li className="rounded bg-muted px-3 py-2">Processing image</li>
-        <li className="rounded bg-muted px-3 py-2">Saving result</li>
+        <li className="rounded bg-white/[0.06] px-3 py-2">Preparing image</li>
+        <li className="rounded bg-white/[0.06] px-3 py-2">Processing image</li>
+        <li className="rounded bg-white/[0.06] px-3 py-2">Saving result</li>
       </ol>
     </section>
   );
@@ -631,10 +627,10 @@ function GeneratedImagePanel({
   isDeleting,
 }: GeneratedImagePanelProps) {
   return (
-    <section className="rounded-md border border-border p-4">
+    <section className="glass-panel p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-medium">Generated image</h2>
+          <h2 className="text-base font-semibold text-white">Generated image</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {sceneCategoryLabels[image.category]} via {image.provider}
           </p>
@@ -644,7 +640,12 @@ function GeneratedImagePanel({
             <Download className="mr-2 size-4" aria-hidden="true" />
             Download
           </Button>
-          <Button type="button" variant="secondary" onClick={() => onDelete(image)} disabled={isDeleting}>
+          <Button
+            type="button"
+            variant="danger"
+            onClick={() => onDelete(image)}
+            disabled={isDeleting}
+          >
             <Trash2 className="mr-2 size-4" aria-hidden="true" />
             {isDeleting ? 'Deleting' : 'Delete'}
           </Button>
@@ -652,7 +653,7 @@ function GeneratedImagePanel({
       </div>
       <img
         alt={`${sceneCategoryLabels[image.category]} generated product image`}
-        className="mt-4 aspect-square w-full rounded-md border border-border object-cover"
+        className="mt-4 aspect-square w-full rounded-lg border border-white/10 object-cover"
         src={image.generatedImageUrl}
       />
     </section>
@@ -673,37 +674,48 @@ function GeneratedImageGallery({
   onDelete,
 }: GeneratedImageGalleryProps) {
   return (
-    <section className="rounded-md border border-border p-4">
-      <h2 className="text-base font-medium">Generated images</h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <section className="glass-panel p-4">
+      <h2 className="text-base font-semibold text-white">Generated images</h2>
+      <div className="mt-4 columns-1 gap-3 sm:columns-2 xl:columns-3">
         {images.length > 0 ? (
           images.map((image) => (
-            <div key={image.id} className="rounded-md border border-border p-3">
+            <div
+              key={image.id}
+              className="group relative mb-3 break-inside-avoid overflow-hidden rounded-lg border border-white/10 bg-secondary/70"
+            >
               <img
                 alt={`${sceneCategoryLabels[image.category]} preview`}
-                className="aspect-square w-full rounded-md object-cover"
+                className="w-full object-cover transition duration-500 group-hover:scale-105"
                 src={image.generatedImageUrl}
               />
-              <div className="mt-3 grid gap-1">
-                <p className="text-sm font-medium">{sceneCategoryLabels[image.category]}</p>
-                <p className="text-sm text-muted-foreground">
+              <div className="absolute inset-x-0 bottom-0 translate-y-2 bg-gradient-to-t from-black/85 to-transparent p-3 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
+                <p className="text-sm font-semibold text-white">
+                  {sceneCategoryLabels[image.category]}
+                </p>
+                <p className="text-xs text-white/70">
                   {new Date(image.createdAt).toLocaleDateString()}
                 </p>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <Button type="button" variant="secondary" onClick={() => onDownload(image)}>
-                  <Download className="mr-2 size-4" aria-hidden="true" />
-                  Download
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => onDelete(image)}
-                  disabled={deletingGeneratedImageId === image.id}
-                >
-                  <Trash2 className="mr-2 size-4" aria-hidden="true" />
-                  {deletingGeneratedImageId === image.id ? 'Deleting' : 'Delete'}
-                </Button>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    className="h-8 px-3"
+                    type="button"
+                    variant="secondary"
+                    onClick={() => onDownload(image)}
+                  >
+                    <Download className="size-4" aria-hidden="true" />
+                    Download
+                  </Button>
+                  <Button
+                    className="h-8 px-3"
+                    type="button"
+                    variant="danger"
+                    onClick={() => onDelete(image)}
+                    disabled={deletingGeneratedImageId === image.id}
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                    {deletingGeneratedImageId === image.id ? 'Deleting' : 'Delete'}
+                  </Button>
+                </div>
               </div>
             </div>
           ))
@@ -733,10 +745,10 @@ function ImageEnhancementPanel({
   };
 
   return (
-    <section className="rounded-md border border-border p-4">
+    <section className="glass-panel p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-medium">Image enhancement</h2>
+          <h2 className="text-base font-semibold text-white">Image enhancement</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {operationLabels[enhancedImage.operation]} via {enhancedImage.providerName}
           </p>
@@ -760,7 +772,7 @@ function ImageComparisonFrame({ label, imageUrl }: { label: string; imageUrl: st
       <h3 className="text-sm font-medium">{label}</h3>
       <img
         alt={`${label} product image`}
-        className="mt-2 aspect-square w-full rounded-md border border-border object-cover"
+        className="mt-2 aspect-square w-full rounded-lg border border-white/10 object-cover"
         src={imageUrl}
       />
     </div>
@@ -789,8 +801,8 @@ function MarketplaceOptimizationPanel({
   const keywords = result.optimization.keywordsTags.join(', ');
 
   return (
-    <section className="rounded-md border border-border p-4">
-      <h2 className="text-base font-medium">{marketplaceLabel} optimized output</h2>
+    <section className="glass-panel p-4">
+      <h2 className="text-base font-semibold text-white">{marketplaceLabel} optimized output</h2>
       <div className="mt-4 grid gap-4">
         <MarketplaceCopySection
           label="Optimized title"
@@ -832,15 +844,9 @@ function MarketplaceOptimizationPanel({
   );
 }
 
-function MarketplaceCopySection({
-  label,
-  value,
-  copyKey,
-  copiedKey,
-  onCopy,
-}: CopyFieldProps) {
+function MarketplaceCopySection({ label, value, copyKey, copiedKey, onCopy }: CopyFieldProps) {
   return (
-    <div className="border-t border-border pt-4 first:border-t-0 first:pt-0">
+    <div className="border-t border-white/10 pt-4 first:border-t-0 first:pt-0">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-medium">{label}</h3>
         <Button type="button" variant="secondary" onClick={() => onCopy(copyKey, value)}>
@@ -865,15 +871,17 @@ function BeforeAfterComparison({
   onAccept,
 }: BeforeAfterComparisonProps) {
   return (
-    <section className="rounded-md border border-border p-4">
+    <section className="glass-panel p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-medium">Before / after comparison</h2>
+        <h2 className="text-base font-semibold text-white">Before / after comparison</h2>
         <Button
           type="button"
           onClick={() => onAccept(improvement.improvedVersion)}
           disabled={acceptingVersionId === improvement.improvedVersion.id}
         >
-          {acceptingVersionId === improvement.improvedVersion.id ? 'Accepting' : 'Accept improved version'}
+          {acceptingVersionId === improvement.improvedVersion.id
+            ? 'Accepting'
+            : 'Accept improved version'}
         </Button>
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -886,12 +894,12 @@ function BeforeAfterComparison({
 
 function ListingSnapshot({ title, listing }: { title: string; listing: GeneratedListing }) {
   return (
-    <div className="rounded-md border border-border p-3">
-      <h3 className="text-sm font-medium">{title}</h3>
+    <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
+      <h3 className="text-sm font-semibold text-white">{title}</h3>
       <dl className="mt-3 grid gap-3 text-sm">
         <div>
           <dt className="text-muted-foreground">Title</dt>
-          <dd className="mt-1 font-medium">{listing.title}</dd>
+          <dd className="mt-1 font-medium text-white">{listing.title}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Short description</dt>
@@ -918,17 +926,17 @@ interface VersionHistoryProps {
 
 function VersionHistory({ versions, acceptingVersionId, onAccept }: VersionHistoryProps) {
   return (
-    <section className="rounded-md border border-border p-4">
-      <h2 className="text-base font-medium">Version history</h2>
+    <section className="glass-panel p-4">
+      <h2 className="text-base font-semibold text-white">Version history</h2>
       <div className="mt-3 grid gap-3">
         {versions.length > 0 ? (
           versions.map((version) => (
             <div
               key={version.id}
-              className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+              className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 sm:grid-cols-[minmax(0,1fr)_auto]"
             >
               <div className="min-w-0">
-                <p className="text-sm font-medium">
+                <p className="text-sm font-semibold text-white">
                   Version {version.versionNumber}
                   {version.isAccepted ? ' - accepted' : ''}
                 </p>
@@ -956,8 +964,8 @@ function VersionHistory({ versions, acceptingVersionId, onAccept }: VersionHisto
 
 function SeoAnalysisPanel({ result }: { result: SeoAnalysisResult }) {
   return (
-    <section className="rounded-md border border-border p-4">
-      <h2 className="text-base font-medium">SEO quality</h2>
+    <section className="glass-panel p-4">
+      <h2 className="text-base font-semibold text-white">SEO quality</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <ScoreMeter label="SEO score" value={result.analysis.seoScore} />
         <ScoreMeter label="Readability" value={result.analysis.readabilityScore} />
@@ -986,13 +994,16 @@ function SeoAnalysisPanel({ result }: { result: SeoAnalysisResult }) {
 
 function ScoreMeter({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border border-border p-3">
+    <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm text-muted-foreground">{label}</span>
         <span className="text-lg font-semibold">{value}/100</span>
       </div>
       <div className="mt-3 h-2 overflow-hidden rounded bg-muted">
-        <div className="h-full bg-primary" style={{ width: `${value}%` }} />
+        <div
+          className="h-full bg-gradient-to-r from-primary to-accent"
+          style={{ width: `${value}%` }}
+        />
       </div>
     </div>
   );
@@ -1013,7 +1024,7 @@ function ListBlock({ title, values }: { title: string; values: string[] }) {
       <h3 className="text-sm font-medium">{title}</h3>
       <ul className="mt-2 grid gap-2 text-sm text-muted-foreground">
         {values.map((value) => (
-          <li key={value} className="rounded bg-muted px-3 py-2">
+          <li key={value} className="rounded bg-white/[0.06] px-3 py-2">
             {value}
           </li>
         ))}
@@ -1032,9 +1043,9 @@ interface CopyFieldProps {
 
 function CopyField({ label, value, copyKey, copiedKey, onCopy }: CopyFieldProps) {
   return (
-    <section className="rounded-md border border-border p-4">
+    <section className="premium-card p-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-medium">{label}</h2>
+        <h2 className="text-base font-semibold text-white">{label}</h2>
         <Button type="button" variant="secondary" onClick={() => onCopy(copyKey, value)}>
           <Clipboard className="mr-2 size-4" aria-hidden="true" />
           {copiedKey === copyKey ? 'Copied' : 'Copy'}
@@ -1042,5 +1053,13 @@ function CopyField({ label, value, copyKey, copiedKey, onCopy }: CopyFieldProps)
       </div>
       <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{value}</p>
     </section>
+  );
+}
+
+function ErrorMessage({ message }: { message: string }) {
+  return (
+    <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+      {message}
+    </p>
   );
 }

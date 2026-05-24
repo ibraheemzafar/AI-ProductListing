@@ -4,17 +4,84 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71% 4%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --primary: 173 80% 32%;
+    --background: 226 45% 6%;
+    --foreground: 214 40% 96%;
+    --muted: 224 26% 16%;
+    --muted-foreground: 218 17% 68%;
+    --primary: 263 92% 68%;
     --primary-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
+    --secondary: 225 30% 13%;
+    --secondary-foreground: 214 40% 96%;
+    --accent: 196 89% 62%;
+    --accent-foreground: 226 45% 6%;
+    --border: 224 24% 23%;
+    --input: 224 24% 23%;
+    --ring: 263 92% 74%;
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply min-h-screen bg-background text-foreground antialiased;
+    background:
+      radial-gradient(circle at top left, hsl(263 92% 68% / 0.24), transparent 34rem),
+      radial-gradient(circle at top right, hsl(196 89% 62% / 0.16), transparent 30rem),
+      linear-gradient(180deg, hsl(226 45% 6%), hsl(225 43% 8%) 44%, hsl(226 45% 6%));
+  }
+
+  ::selection {
+    @apply bg-primary/30 text-white;
   }
 }
 
+@layer components {
+  .app-shell {
+    @apply min-h-screen bg-[radial-gradient(circle_at_50%_0%,hsl(263_92%_68%/0.16),transparent_36rem)];
+  }
+
+  .page-container {
+    @apply mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8;
+  }
+
+  .glass-panel {
+    @apply rounded-lg border border-white/10 bg-white/[0.055] shadow-[0_24px_80px_-48px_rgba(0,0,0,0.9)] backdrop-blur-xl;
+  }
+
+  .premium-card {
+    @apply rounded-lg border border-white/10 bg-secondary/70 shadow-[0_18px_70px_-48px_rgba(0,0,0,0.9)] transition-all duration-200;
+  }
+
+  .premium-card-hover {
+    @apply hover:-translate-y-1 hover:border-primary/35 hover:bg-secondary/90 hover:shadow-[0_24px_90px_-56px_hsl(var(--primary)/0.8)];
+  }
+
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-accent;
+  }
+
+  .field-surface {
+    @apply rounded-md border border-input bg-background/55 px-3 text-sm text-foreground outline-none transition focus:border-primary/70 focus:ring-2 focus:ring-primary/25;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-white/[0.07];
+  }
+
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

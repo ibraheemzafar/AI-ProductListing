@@ -98,19 +98,19 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
       {toastMessage ? (
         <div
-          className="rounded-md border border-border bg-muted px-4 py-3 text-sm lg:col-span-2"
+          className="glass-panel fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 text-sm text-white"
           role="status"
         >
           {toastMessage}
         </div>
       ) : null}
 
-      <section className="rounded-md border border-border p-5">
-        <h2 className="text-lg font-medium">Upload product images</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
+      <section className="glass-panel p-5">
+        <h2 className="text-lg font-semibold text-white">Upload product images</h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Preview images before uploading them to your product workspace.
         </p>
         <div className="mt-5">
@@ -118,8 +118,8 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
         </div>
       </section>
 
-      <section className="rounded-md border border-border p-5">
-        <h2 className="text-lg font-medium">Uploaded images</h2>
+      <section className="glass-panel p-5">
+        <h2 className="text-lg font-semibold text-white">Uploaded images</h2>
         <div className="mt-5 grid gap-3">
           {initialImages.length > 0 ? (
             initialImages.map((image) => {
@@ -127,15 +127,20 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
               const listing = analysis ? listingByAnalysisId[analysis.id] : undefined;
 
               return (
-                <div key={image.id} className="rounded-md border border-border p-2">
+                <div
+                  key={image.id}
+                  className="rounded-lg border border-white/10 bg-secondary/60 p-3 transition hover:border-primary/35"
+                >
                   <div className="flex gap-3">
                     <img
                       alt={image.originalFilename}
-                      className="size-20 rounded object-cover"
+                      className="size-20 rounded-md object-cover"
                       src={image.imageUrl}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{image.originalFilename}</p>
+                      <p className="truncate text-sm font-semibold text-white">
+                        {image.originalFilename}
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         {(image.sizeBytes / 1024 / 1024).toFixed(2)} MB
                       </p>
@@ -152,11 +157,13 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
                   </div>
 
                   {errorByImageId[image.id] ? (
-                    <p className="mt-3 text-sm text-red-600">{errorByImageId[image.id]}</p>
+                    <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+                      {errorByImageId[image.id]}
+                    </p>
                   ) : null}
 
                   {analysis ? (
-                    <div className="mt-4 border-t border-border pt-3">
+                    <div className="mt-4 border-t border-white/10 pt-3">
                       <AnalysisAttributes analysis={analysis} />
                       <Button
                         className="mt-4 h-9 px-3"
@@ -169,7 +176,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
                       </Button>
 
                       {errorByAnalysisId[analysis.id] ? (
-                        <p className="mt-3 text-sm text-red-600">
+                        <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
                           {errorByAnalysisId[analysis.id]}
                         </p>
                       ) : null}
@@ -187,7 +194,12 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
               );
             })
           ) : (
-            <p className="text-sm text-muted-foreground">No uploaded images yet.</p>
+            <div className="rounded-lg border border-dashed border-white/15 bg-white/[0.03] p-8 text-center">
+              <p className="text-sm font-medium text-white">No uploaded images yet.</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Uploaded assets will appear here for AI analysis.
+              </p>
+            </div>
           )}
         </div>
       </section>
@@ -211,7 +223,7 @@ function AnalysisAttributes({ analysis }: { analysis: ProductAnalysisResult }) {
       {attributes.map(([label, value]) => (
         <div key={label} className="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
           <dt className="text-muted-foreground">{label}</dt>
-          <dd className="min-w-0 break-words font-medium">{value}</dd>
+          <dd className="min-w-0 break-words font-medium text-white">{value}</dd>
         </div>
       ))}
     </dl>
@@ -229,7 +241,7 @@ function GeneratedListingPanel({ listing, copiedKey, onCopy }: GeneratedListingP
   const tagText = listing.listing.productTags.join(', ');
 
   return (
-    <div className="mt-4 grid gap-4 border-t border-border pt-4 text-sm">
+    <div className="mt-4 grid gap-4 border-t border-white/10 pt-4 text-sm">
       <ListingField
         label="Title"
         value={listing.listing.title}
@@ -292,7 +304,9 @@ function ListingField({ label, value, copyKey, copiedKey, onCopy }: ListingField
           {copiedKey === copyKey ? 'Copied' : 'Copy'}
         </Button>
       </div>
-      <p className="break-words rounded-md bg-muted p-3 text-muted-foreground">{value}</p>
+      <p className="break-words rounded-md border border-white/10 bg-background/45 p-3 text-muted-foreground">
+        {value}
+      </p>
     </section>
   );
 }

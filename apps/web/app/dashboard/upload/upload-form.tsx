@@ -1,6 +1,6 @@
 'use client';
 
-import { ImagePlus, Upload } from 'lucide-react';
+import { ImagePlus, Upload, X } from 'lucide-react';
 import { ChangeEvent, DragEvent, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,7 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
 
   function handleDrop(event: DragEvent<HTMLLabelElement>) {
     event.preventDefault();
+    event.currentTarget.dataset.dragging = 'false';
     addFiles(Array.from(event.dataTransfer.files));
   }
 
@@ -115,13 +116,24 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
   return (
     <div className="flex flex-col gap-5">
       <label
-        className="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border px-6 py-8 text-center transition-colors hover:bg-muted"
+        className="group flex min-h-60 cursor-pointer flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-primary/35 bg-primary/[0.06] px-6 py-10 text-center transition hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/[0.09] data-[dragging=true]:scale-[1.01] data-[dragging=true]:border-accent data-[dragging=true]:bg-accent/10"
+        onDragEnter={(event) => {
+          event.currentTarget.dataset.dragging = 'true';
+        }}
+        onDragLeave={(event) => {
+          event.currentTarget.dataset.dragging = 'false';
+        }}
         onDragOver={(event) => event.preventDefault()}
         onDrop={handleDrop}
       >
-        <ImagePlus className="size-8 text-primary" aria-hidden="true" />
-        <span className="text-sm font-medium">Drop images here or browse</span>
-        <span className="text-xs text-muted-foreground">JPG, PNG, WEBP up to 10MB each</span>
+        <span className="flex size-14 items-center justify-center rounded-lg bg-primary/15 text-primary transition group-hover:scale-105">
+          <ImagePlus className="size-7" aria-hidden="true" />
+        </span>
+        <span className="text-base font-semibold text-white">Drop images here or browse</span>
+        <span className="max-w-sm text-sm leading-6 text-muted-foreground">
+          JPG, PNG, and WEBP images up to 10MB each. Select multiple product angles for better AI
+          context.
+        </span>
         <input
           className="sr-only"
           multiple
@@ -133,17 +145,20 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
 
       {hasFiles ? (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <div className="flex items-center justify-between rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-muted-foreground">
             <span>{previews.length} selected</span>
             <span>{totalSizeLabel}</span>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {previews.map((preview) => (
-              <div key={preview.id} className="overflow-hidden rounded-md border border-border">
+              <div
+                key={preview.id}
+                className="group overflow-hidden rounded-lg border border-white/10 bg-secondary/70"
+              >
                 <img
                   alt={preview.file.name}
-                  className="aspect-square w-full object-cover"
+                  className="aspect-square w-full object-cover transition duration-500 group-hover:scale-105"
                   src={preview.previewUrl}
                 />
                 <div className="truncate px-3 py-2 text-xs text-muted-foreground">
@@ -156,12 +171,25 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
       ) : null}
 
       {isUploading ? (
-        <div className="h-2 overflow-hidden rounded bg-muted">
-          <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+        <div className="rounded-md border border-white/10 bg-white/[0.04] p-3">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Uploading assets</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded bg-muted">
+            <div
+              className="h-full bg-gradient-to-r from-primary to-accent transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
       ) : null}
 
-      {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+      {errorMessage ? (
+        <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+          {errorMessage}
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap gap-3">
         <Button type="button" onClick={uploadFiles} disabled={isUploading || !hasFiles}>
@@ -169,6 +197,7 @@ export function UploadForm({ onUploadComplete }: UploadFormProps) {
           {isUploading ? `Uploading ${progress}%` : 'Upload images'}
         </Button>
         <Button type="button" variant="secondary" onClick={clearFiles} disabled={isUploading}>
+          <X className="size-4" aria-hidden="true" />
           Clear
         </Button>
       </div>
@@ -184,4 +213,3 @@ function readUploadError(responseText: string) {
     return 'Upload failed. Please try again.';
   }
 }
-

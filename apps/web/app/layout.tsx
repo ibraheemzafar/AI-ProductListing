@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AI Product Listing Generator',
-  description: 'Scaffold for the AI product listing platform.',
+  title: 'CatalogAI | AI Product Listing Generator',
+  description: 'Generate SEO-ready product listings and premium marketplace visuals from images.',
 };
 
 interface RootLayoutProps {
@@ -13,9 +13,8 @@ interface RootLayoutProps {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body>{children}</body>
     </html>
   );
 }
-

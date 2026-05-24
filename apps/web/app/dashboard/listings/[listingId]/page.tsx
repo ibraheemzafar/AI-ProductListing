@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { ListingDetailView } from './listing-detail-view';
+import { DashboardShell } from '@/components/dashboard-shell';
+import { Button } from '@/components/ui/button';
 import { getCurrentSession } from '@/lib/api/auth';
 import { getListingDetail } from '@/lib/api/listing-history';
 
@@ -23,19 +25,19 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
   try {
     const listing = await getListingDetail(listingId);
     return (
-      <main className="min-h-screen px-6 py-10">
-        <section className="mx-auto flex max-w-6xl flex-col gap-8">
-          <div className="border-b border-border pb-6">
-            <Link className="text-sm font-medium text-primary" href="/dashboard">
-              Dashboard
-            </Link>
-            <h1 className="mt-2 text-3xl font-semibold tracking-normal">{listing.listing.title}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{session.user.email}</p>
-          </div>
-
-          <ListingDetailView listing={listing} />
-        </section>
-      </main>
+      <DashboardShell
+        actions={
+          <Button asChild variant="secondary">
+            <Link href="/dashboard">Back to listings</Link>
+          </Button>
+        }
+        description="Review generated copy, run SEO analysis, create improved versions, and build product image variants."
+        email={session.user.email}
+        eyebrow="Listing detail"
+        title={listing.listing.title}
+      >
+        <ListingDetailView listing={listing} />
+      </DashboardShell>
     );
   } catch (error) {
     if (error instanceof Error && error.message === 'Generated listing was not found') {

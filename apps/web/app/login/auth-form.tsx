@@ -74,10 +74,12 @@ export function AuthForm() {
 
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-      <div className="grid grid-cols-2 rounded-md border border-border p-1">
+      <div className="grid grid-cols-2 rounded-md border border-white/10 bg-background/55 p-1">
         <button
-          className={`rounded px-3 py-2 text-sm font-medium ${
-            mode === 'login' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+          className={`rounded px-3 py-2 text-sm font-semibold transition ${
+            mode === 'login'
+              ? 'bg-primary text-primary-foreground shadow-[0_12px_36px_-18px_hsl(var(--primary))]'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
           type="button"
           onClick={() => setMode('login')}
@@ -85,8 +87,10 @@ export function AuthForm() {
           Sign in
         </button>
         <button
-          className={`rounded px-3 py-2 text-sm font-medium ${
-            mode === 'register' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+          className={`rounded px-3 py-2 text-sm font-semibold transition ${
+            mode === 'register'
+              ? 'bg-primary text-primary-foreground shadow-[0_12px_36px_-18px_hsl(var(--primary))]'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
           type="button"
           onClick={() => setMode('register')}
@@ -96,10 +100,10 @@ export function AuthForm() {
       </div>
 
       {mode === 'register' ? (
-        <label className="flex flex-col gap-2 text-sm font-medium">
+        <label className="flex flex-col gap-2 text-sm font-medium text-white">
           Name
           <input
-            className="h-10 rounded-md border border-border px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-primary"
+            className="field-surface h-11 font-normal"
             name="name"
             placeholder="Your name"
             type="text"
@@ -107,10 +111,10 @@ export function AuthForm() {
         </label>
       ) : null}
 
-      <label className="flex flex-col gap-2 text-sm font-medium">
+      <label className="flex flex-col gap-2 text-sm font-medium text-white">
         Email
         <input
-          className="h-10 rounded-md border border-border px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-primary"
+          className="field-surface h-11 font-normal"
           name="email"
           placeholder="you@example.com"
           required
@@ -118,10 +122,10 @@ export function AuthForm() {
         />
       </label>
 
-      <label className="flex flex-col gap-2 text-sm font-medium">
+      <label className="flex flex-col gap-2 text-sm font-medium text-white">
         Password
         <input
-          className="h-10 rounded-md border border-border px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-primary"
+          className="field-surface h-11 font-normal"
           minLength={mode === 'register' ? 8 : 1}
           name="password"
           placeholder={mode === 'register' ? 'At least 8 characters' : 'Your password'}
@@ -130,9 +134,13 @@ export function AuthForm() {
         />
       </label>
 
-      {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+      {errorMessage ? (
+        <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+          {errorMessage}
+        </p>
+      ) : null}
 
-      <Button type="submit" disabled={isSubmitting}>
+      <Button className="mt-2 h-11" type="submit" disabled={isSubmitting}>
         {isSubmitting ? 'Please wait' : mode === 'login' ? 'Sign in' : 'Create account'}
       </Button>
     </form>
