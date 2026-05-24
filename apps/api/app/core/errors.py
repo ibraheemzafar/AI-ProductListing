@@ -28,8 +28,19 @@ class AuthorizationError(AppError):
     message = "You do not have permission to perform this action"
 
 
+class RateLimitError(AppError):
+    status_code = 429
+    code = "rate_limit_exceeded"
+    message = "Too many AI requests. Please wait and try again"
+
+
+class NotFoundError(AppError):
+    status_code = 404
+    code = "not_found"
+    message = "Resource was not found"
+
+
 class ConfigurationError(AppError):
     status_code = 500
     code = "configuration_error"
     message = "Service configuration is invalid"
-

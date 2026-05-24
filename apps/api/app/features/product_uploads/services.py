@@ -10,6 +10,7 @@ from app.features.product_uploads.schemas import ProductImageListResponse, Produ
 from app.shared.storage.provider import StorageProvider
 
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
+MAX_UPLOAD_FILES = 10
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg": ".jpg",
     "image/png": ".png",
@@ -34,6 +35,8 @@ class ProductUploadService:
     ) -> ProductUploadResponse:
         if not files:
             raise AppError("At least one image is required")
+        if len(files) > MAX_UPLOAD_FILES:
+            raise AppError(f"Upload up to {MAX_UPLOAD_FILES} images at a time")
 
         uploaded_storage_names: list[str] = []
         product_images: list[ProductImage] = []
@@ -82,11 +85,14 @@ class ProductUploadService:
             raise AppError("Image must be 10MB or smaller")
         if not content:
             raise AppError("Image file cannot be empty")
+        self._validate_image_signature(content, file.content_type)
         return content
 
     def _validate_file_name(self, filename: str | None) -> None:
         if not filename:
             raise AppError("Image filename is required")
+        if "/" in filename or "\\" in filename:
+            raise AppError("Image filename cannot include path separators")
         extension = Path(filename).suffix.lower()
         if extension not in ALLOWED_EXTENSIONS:
             raise AppError("Only JPG, PNG, and WEBP images are supported")
@@ -98,3 +104,16 @@ class ProductUploadService:
     def _generate_storage_filename(self, file: UploadFile) -> str:
         return f"{uuid4()}{ALLOWED_CONTENT_TYPES[file.content_type or '']}"
 
+    def _validate_image_signature(self, content: bytes, content_type: str | None) -> None:
+        if content_type == "image/jpeg" and content.startswith(b"\xff\xd8\xff"):
+            return
+        if content_type == "image/png" and content.startswith(b"\x89PNG\r\n\x1a\n"):
+            return
+        if (
+            content_type == "image/webp"
+            and len(content) >= 12
+            and content[:4] == b"RIFF"
+            and content[8:12] == b"WEBP"
+        ):
+            return
+        raise AppError("Uploaded file content does not match a supported image format")

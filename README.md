@@ -10,8 +10,8 @@ The repository follows the project docs in `docs/`:
 - Version-controlled prompt package
 - Docker-ready local infrastructure
 
-Authentication is implemented for the MVP. Product uploads and AI generation are not implemented
-yet.
+Authentication, product uploads, AI product image analysis, and AI listing generation are
+implemented for the MVP. Dashboard history, listing detail, and JSON export are also available.
 
 ## Workspace Layout
 
@@ -53,6 +53,11 @@ Set service-specific values before implementing connected workflows:
 - `JWT_SECRET_KEY`
 - `SESSION_COOKIE_NAME`
 - `OPENAI_API_KEY`
+- `OPENAI_VISION_MODEL`
+- `OPENAI_TEXT_MODEL`
+- `OPENAI_TIMEOUT_SECONDS`
+- `AI_RETRY_ATTEMPTS`
+- `AI_RATE_LIMIT_REQUESTS_PER_MINUTE`
 - `AWS_REGION`
 - `AWS_S3_BUCKET`
 
@@ -63,10 +68,23 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
 JWT_SECRET_KEY=replace-with-a-long-random-local-secret
 LOCAL_STORAGE_PATH=storage
 PUBLIC_STORAGE_URL=http://localhost:8000/uploads
+OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_VISION_MODEL=gpt-4.1-mini
+OPENAI_TEXT_MODEL=gpt-4.1-mini
+OPENAI_TIMEOUT_SECONDS=30
+AI_RETRY_ATTEMPTS=3
+AI_RATE_LIMIT_REQUESTS_PER_MINUTE=10
 ```
 
 The backend hashes passwords, persists users in PostgreSQL, and sets an HTTP-only JWT session
 cookie named by `SESSION_COOKIE_NAME`.
+The analysis workflow sends uploaded image bytes to OpenAI Vision with a version-controlled prompt
+from `docs/prompts/product-analysis.md`. The listing workflow uses saved analysis attributes with
+`docs/prompts/listing-generator.md`. Both workflows validate structured JSON, store results in
+PostgreSQL, and record AI request logs with latency, model, success state, and token usage when
+OpenAI returns it.
+AI endpoints are protected by per-user rate limiting and return safe error messages for validation,
+rate-limit, provider, and persistence failures.
 
 ## Install Dependencies
 
@@ -98,12 +116,37 @@ pnpm --filter @ai-product-listing/web dev
 pnpm --filter @ai-product-listing/api dev
 ```
 
+For local infrastructure without rebuilding the app containers:
+
+```bash
+docker compose up postgres redis
+```
+
+If your local Postgres volume already exists, apply schema updates manually:
+
+```bash
+docker compose exec postgres psql -U postgres -d ai_product_listing -f /docker-entrypoint-initdb.d/001_auth.sql
+docker compose exec postgres psql -U postgres -d ai_product_listing -f /docker-entrypoint-initdb.d/002_product_uploads.sql
+```
+
 Visit:
 
 - Login: `http://localhost:3000/login`
 - Protected dashboard: `http://localhost:3000/dashboard`
 - Product image upload: `http://localhost:3000/dashboard/upload`
 - API session check: `http://localhost:8000/api/v1/auth/me`
+- API health check: `http://localhost:8000/api/v1/health`
+
+## MVP Demo Flow
+
+1. Start Postgres/Redis and both apps.
+2. Register or log in at `http://localhost:3000/login`.
+3. Open `http://localhost:3000/dashboard/upload`.
+4. Upload a JPG, PNG, or WEBP product image under 10MB.
+5. Click **Analyze Product** and review extracted attributes.
+6. Click **Generate Listing** and review the generated copy.
+7. Open `http://localhost:3000/dashboard` to see listing history.
+8. Open a listing detail page, copy individual fields, use **Copy All**, or **Download JSON**.
 
 ## Quality Checks
 
@@ -119,6 +162,14 @@ API checks:
 pnpm --filter @ai-product-listing/api lint
 pnpm --filter @ai-product-listing/api typecheck
 pnpm --filter @ai-product-listing/api test
+```
+
+Web checks:
+
+```bash
+pnpm --filter @ai-product-listing/web lint
+pnpm --filter @ai-product-listing/web typecheck
+pnpm --filter @ai-product-listing/web test
 ```
 
 ## Docker
@@ -138,10 +189,19 @@ Services:
 
 The Docker PostgreSQL service runs `infra/postgres/init/001_auth.sql` on first database creation to
 create the auth `users` table, and `infra/postgres/init/002_product_uploads.sql` to create
-`products` and `product_images`.
+`products`, `product_images`, `product_analysis_results`, `generated_listings`, and
+`ai_request_logs`.
 
 If you previously ran the Google-auth scaffold, recreate the local Postgres volume so the `users`
 table is rebuilt with `password_hash` instead of `google_subject`.
 
 For an existing local Postgres database, run both SQL files manually. The upload API stores local
 files in `LOCAL_STORAGE_PATH` and returns image URLs using `PUBLIC_STORAGE_URL`.
+
+## Security Notes
+
+- `OPENAI_API_KEY` is read only by the FastAPI service and must not be exposed through
+  `NEXT_PUBLIC_*` variables.
+- Product image, analysis, listing, and export APIs require an authenticated session.
+- Listing history, detail, and export queries are scoped to the authenticated user's records.
+- Uploads validate filename, declared MIME type, size, extension, and basic image file signature.

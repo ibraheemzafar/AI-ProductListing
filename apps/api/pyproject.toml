@@ -9,6 +9,7 @@ dependencies = [
   "bcrypt>=4.0.1,<4.1",
   "email-validator>=2.2.0",
   "fastapi>=0.115.6",
+  "httpx>=0.28.1",
   "passlib>=1.7.4",
   "PyJWT>=2.10.1",
   "pydantic-settings>=2.7.1",
@@ -18,7 +19,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.28.1",
   "mypy>=1.14.1",
   "pytest>=8.3.4",
   "pytest-asyncio>=0.25.2",

@@ -13,6 +13,10 @@ from app.features.product_uploads.services import ProductUploadService
 from app.main import create_app
 from app.shared.storage.provider import StorageProvider
 
+JPEG_BYTES = b"\xff\xd8\xff\xe0fake-jpeg"
+PNG_BYTES = b"\x89PNG\r\n\x1a\nfake-png"
+WEBP_BYTES = b"RIFFxxxxWEBPfake-webp"
+
 
 class InMemoryStorageProvider(StorageProvider):
     def __init__(self) -> None:
@@ -22,6 +26,9 @@ class InMemoryStorageProvider(StorageProvider):
         del content_type
         self.files[file_name] = content
         return f"http://testserver/uploads/{file_name}"
+
+    async def read(self, file_name: str) -> bytes:
+        return self.files[file_name]
 
     async def delete(self, file_name: str) -> None:
         self.files.pop(file_name, None)
@@ -83,8 +90,8 @@ def test_upload_product_images_accepts_supported_files(client: TestClient) -> No
     response = client.post(
         "/api/v1/products/images",
         files=[
-            ("files", ("front.jpg", b"fake-jpeg", "image/jpeg")),
-            ("files", ("side.png", b"fake-png", "image/png")),
+            ("files", ("front.jpg", JPEG_BYTES, "image/jpeg")),
+            ("files", ("side.png", PNG_BYTES, "image/png")),
         ],
     )
 
@@ -108,7 +115,9 @@ def test_upload_product_images_rejects_invalid_file_type(client: TestClient) -> 
 def test_upload_product_images_rejects_large_files(client: TestClient) -> None:
     response = client.post(
         "/api/v1/products/images",
-        files=[("files", ("large.jpg", b"x" * (10 * 1024 * 1024 + 1), "image/jpeg"))],
+        files=[
+            ("files", ("large.jpg", b"\xff\xd8\xff" + b"x" * (10 * 1024 * 1024), "image/jpeg")),
+        ],
     )
 
     assert response.status_code == 400
@@ -118,7 +127,7 @@ def test_upload_product_images_rejects_large_files(client: TestClient) -> None:
 def test_list_product_images_returns_uploaded_images(client: TestClient) -> None:
     client.post(
         "/api/v1/products/images",
-        files=[("files", ("front.webp", b"fake-webp", "image/webp"))],
+        files=[("files", ("front.webp", WEBP_BYTES, "image/webp"))],
     )
 
     response = client.get("/api/v1/products/images")
@@ -126,3 +135,15 @@ def test_list_product_images_returns_uploaded_images(client: TestClient) -> None
     assert response.status_code == 200
     assert response.json()["images"][0]["original_filename"] == "front.webp"
 
+
+def test_upload_product_images_rejects_mismatched_content(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/products/images",
+        files=[("files", ("front.jpg", b"not-really-a-jpeg", "image/jpeg"))],
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["error"]["message"]
+        == "Uploaded file content does not match a supported image format"
+    )
