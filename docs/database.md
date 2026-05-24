@@ -26,6 +26,17 @@
 - description
 - seo_keywords
 
+### generated_images
+- id
+- user_id
+- source_product_image_id
+- generated_image_url
+- category
+- prompt
+- provider
+- status
+- created_at
+
 ### prompt_versions
 - id
 - prompt_name

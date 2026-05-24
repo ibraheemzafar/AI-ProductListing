@@ -11,22 +11,26 @@ class GeneratedImage(Base):
     __tablename__ = "generated_images"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True)
     product_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), index=True)
     listing_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("generated_listings.id"),
         index=True,
     )
-    source_image_id: Mapped[str] = mapped_column(String(36), ForeignKey("product_images.id"))
+    source_product_image_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("product_images.id"),
+    )
     source_enhanced_image_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("enhanced_images.id"),
         nullable=True,
     )
-    scene_preset: Mapped[str] = mapped_column(String(100))
+    category: Mapped[str] = mapped_column(String(100))
     custom_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     prompt: Mapped[str] = mapped_column(Text)
-    provider_name: Mapped[str] = mapped_column(String(100))
+    provider: Mapped[str] = mapped_column(String(100))
     storage_filename: Mapped[str] = mapped_column(String(255), unique=True)
     generated_image_url: Mapped[str] = mapped_column(String(2048))
     content_type: Mapped[str] = mapped_column(String(100))

@@ -200,22 +200,26 @@ export interface EnhancedImageResult {
 }
 
 export type ScenePreset =
-  | 'luxury_setup'
-  | 'wooden_table_setup'
   | 'studio_white_background'
-  | 'cozy_home_environment'
-  | 'modern_ecommerce_hero_shot';
+  | 'luxury_product_shot'
+  | 'wooden_table_setup'
+  | 'minimal_ecommerce_background'
+  | 'lifestyle_home_setup'
+  | 'social_media_banner'
+  | 'marketplace_hero_image'
+  | 'custom_prompt';
 
 export interface GeneratedSceneImage {
   id: string;
+  userId: string;
   productId: string;
   listingId: string;
-  sourceImageId: string;
+  sourceProductImageId: string;
   sourceEnhancedImageId: string | null;
-  scenePreset: ScenePreset;
+  category: ScenePreset;
   customPrompt: string | null;
   prompt: string;
-  providerName: string;
+  provider: string;
   generatedImageUrl: string;
   contentType: string;
   sizeBytes: number;

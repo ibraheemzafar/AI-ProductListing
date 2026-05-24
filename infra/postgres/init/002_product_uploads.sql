@@ -175,14 +175,15 @@ CREATE INDEX IF NOT EXISTS ix_enhanced_images_original_operation_created_at
 
 CREATE TABLE IF NOT EXISTS generated_images (
   id VARCHAR(36) PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL REFERENCES users(id),
   product_id VARCHAR(36) NOT NULL REFERENCES products(id),
   listing_id VARCHAR(36) NOT NULL REFERENCES generated_listings(id),
-  source_image_id VARCHAR(36) NOT NULL REFERENCES product_images(id),
+  source_product_image_id VARCHAR(36) NOT NULL REFERENCES product_images(id),
   source_enhanced_image_id VARCHAR(36) REFERENCES enhanced_images(id),
-  scene_preset VARCHAR(100) NOT NULL,
+  category VARCHAR(100) NOT NULL,
   custom_prompt TEXT,
   prompt TEXT NOT NULL,
-  provider_name VARCHAR(100) NOT NULL,
+  provider VARCHAR(100) NOT NULL,
   storage_filename VARCHAR(255) NOT NULL UNIQUE,
   generated_image_url VARCHAR(2048) NOT NULL,
   content_type VARCHAR(100) NOT NULL,
@@ -192,9 +193,20 @@ CREATE TABLE IF NOT EXISTS generated_images (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE generated_images
+  ADD COLUMN IF NOT EXISTS user_id VARCHAR(36) REFERENCES users(id);
+ALTER TABLE generated_images
+  ADD COLUMN IF NOT EXISTS source_product_image_id VARCHAR(36) REFERENCES product_images(id);
+ALTER TABLE generated_images
+  ADD COLUMN IF NOT EXISTS category VARCHAR(100);
+ALTER TABLE generated_images
+  ADD COLUMN IF NOT EXISTS provider VARCHAR(100);
+
 CREATE INDEX IF NOT EXISTS ix_generated_images_product_id
   ON generated_images (product_id);
 CREATE INDEX IF NOT EXISTS ix_generated_images_listing_id
   ON generated_images (listing_id);
 CREATE INDEX IF NOT EXISTS ix_generated_images_listing_created_at
   ON generated_images (listing_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_generated_images_user_id
+  ON generated_images (user_id);

@@ -50,10 +50,23 @@ class InMemoryLifestyleGenerationRepository(LifestyleGenerationRepository):
         listing_id: str,
         user_id: str,
     ) -> list[GeneratedImage] | None:
-        del user_id
         if self.source is None or self.source.listing.id != listing_id:
             return None
-        return self.generated_images
+        return [image for image in self.generated_images if image.user_id == user_id]
+
+    async def get_generated_image_for_user(
+        self,
+        listing_id: str,
+        image_id: str,
+        user_id: str,
+    ) -> GeneratedImage | None:
+        for image in self.generated_images:
+            if image.id == image_id and image.listing_id == listing_id and image.user_id == user_id:
+                return image
+        return None
+
+    async def delete_generated_image(self, image: GeneratedImage) -> None:
+        self.generated_images = [saved for saved in self.generated_images if saved.id != image.id]
 
     async def create_request_log(self, log: AiRequestLog) -> None:
         self.logs.append(log)
@@ -92,11 +105,11 @@ class FakePromptBuilder(LifestyleScenePromptBuilder):
 
     def build_prompt(
         self,
-        scene_preset: ScenePreset,
+        category: ScenePreset,
         custom_prompt: str | None,
     ) -> PromptTemplate:
         return PromptTemplate(
-            content=f"Generate {scene_preset} with {custom_prompt or 'default direction'}",
+            content=f"Generate {category} with {custom_prompt or 'default direction'}",
             version="test-lifestyle-v1",
         )
 
@@ -124,11 +137,14 @@ class InMemoryStorageProvider(StorageProvider):
 @pytest.mark.parametrize(
     "scene_preset",
     [
-        "luxury_setup",
+        "luxury_product_shot",
         "wooden_table_setup",
         "studio_white_background",
-        "cozy_home_environment",
-        "modern_ecommerce_hero_shot",
+        "minimal_ecommerce_background",
+        "lifestyle_home_setup",
+        "social_media_banner",
+        "marketplace_hero_image",
+        "custom_prompt",
     ],
 )
 async def test_lifestyle_generation_service_saves_generated_scene(
@@ -141,11 +157,11 @@ async def test_lifestyle_generation_service_saves_generated_scene(
     response = await service.generate_lifestyle_scene(
         user_id="user-1",
         listing_id="listing-1",
-        scene_preset=scene_preset,
+        category=scene_preset,
         custom_prompt="Warm afternoon light",
     )
 
-    assert response.scene_preset == scene_preset
+    assert response.category == scene_preset
     assert response.generated_image_url.startswith("http://testserver/uploads/")
     assert repository.generated_images[0].source_enhanced_image_id == "enhanced-1"
     assert repository.generated_images[0].prompt.startswith("Generate")
@@ -161,7 +177,7 @@ async def test_lifestyle_generation_service_lists_generated_scenes() -> None:
     await service.generate_lifestyle_scene(
         user_id="user-1",
         listing_id="listing-1",
-        scene_preset="studio_white_background",
+        category="studio_white_background",
         custom_prompt=None,
     )
 
@@ -179,7 +195,7 @@ async def test_lifestyle_generation_service_requires_owned_listing_image() -> No
         await service.generate_lifestyle_scene(
             user_id="user-1",
             listing_id="listing-1",
-            scene_preset="luxury_setup",
+            category="luxury_product_shot",
             custom_prompt=None,
         )
 
@@ -194,7 +210,7 @@ async def test_lifestyle_generation_service_retries_and_logs_failure() -> None:
         await service.generate_lifestyle_scene(
             user_id="user-1",
             listing_id="listing-1",
-            scene_preset="cozy_home_environment",
+            category="lifestyle_home_setup",
             custom_prompt=None,
         )
 
@@ -216,7 +232,7 @@ async def test_lifestyle_generation_service_preserves_provider_app_error() -> No
         await service.generate_lifestyle_scene(
             user_id="user-1",
             listing_id="listing-1",
-            scene_preset="studio_white_background",
+            category="studio_white_background",
             custom_prompt=None,
         )
 
@@ -225,15 +241,81 @@ async def test_lifestyle_generation_service_preserves_provider_app_error() -> No
     )
 
 
+@pytest.mark.asyncio
+async def test_lifestyle_generation_service_downloads_owned_generated_image() -> None:
+    repository = InMemoryLifestyleGenerationRepository(source=build_source())
+    storage_provider = InMemoryStorageProvider()
+    service = build_service(repository, storage_provider=storage_provider)
+    await service.generate_lifestyle_scene(
+        user_id="user-1",
+        listing_id="listing-1",
+        category="marketplace_hero_image",
+        custom_prompt=None,
+    )
+
+    content, content_type, filename = await service.download_generated_image(
+        user_id="user-1",
+        listing_id="listing-1",
+        image_id="generated-1",
+    )
+
+    assert content == b"generated-png"
+    assert content_type == "image/png"
+    assert filename == "listing-1-marketplace_hero_image.png"
+
+
+@pytest.mark.asyncio
+async def test_lifestyle_generation_service_deletes_owned_generated_image() -> None:
+    repository = InMemoryLifestyleGenerationRepository(source=build_source())
+    storage_provider = InMemoryStorageProvider()
+    service = build_service(repository, storage_provider=storage_provider)
+    await service.generate_lifestyle_scene(
+        user_id="user-1",
+        listing_id="listing-1",
+        category="marketplace_hero_image",
+        custom_prompt=None,
+    )
+    storage_filename = repository.generated_images[0].storage_filename
+
+    await service.delete_generated_image(
+        user_id="user-1",
+        listing_id="listing-1",
+        image_id="generated-1",
+    )
+
+    assert repository.generated_images == []
+    assert storage_filename not in storage_provider.files
+
+
+@pytest.mark.asyncio
+async def test_lifestyle_generation_service_blocks_unauthorized_generated_image_access() -> None:
+    repository = InMemoryLifestyleGenerationRepository(source=build_source())
+    service = build_service(repository)
+    await service.generate_lifestyle_scene(
+        user_id="user-1",
+        listing_id="listing-1",
+        category="marketplace_hero_image",
+        custom_prompt=None,
+    )
+
+    with pytest.raises(AppError, match="Generated image was not found"):
+        await service.download_generated_image(
+            user_id="user-2",
+            listing_id="listing-1",
+            image_id="generated-1",
+        )
+
+
 def build_service(
     repository: InMemoryLifestyleGenerationRepository,
     provider: FakeImageGenerationProvider | None = None,
+    storage_provider: InMemoryStorageProvider | None = None,
     attempts: int = 3,
 ) -> LifestyleGenerationService:
     return LifestyleGenerationService(
         repository=repository,
         generation_provider=provider or FakeImageGenerationProvider(),
-        storage_provider=InMemoryStorageProvider(),
+        storage_provider=storage_provider or InMemoryStorageProvider(),
         prompt_builder=FakePromptBuilder(),
         retry_attempts=attempts,
     )

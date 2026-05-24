@@ -21,14 +21,14 @@ class FakeLifestyleGenerationService:
         self,
         user_id: str,
         listing_id: str,
-        scene_preset: str,
+        category: str,
         custom_prompt: str | None,
     ) -> GeneratedImageResponse:
         assert user_id == "user-1"
         return GeneratedImageResponse.from_model(
             build_generated_image(
                 listing_id=listing_id,
-                scene_preset=scene_preset,
+                category=category,
                 custom_prompt=custom_prompt,
             ),
         )
@@ -46,6 +46,27 @@ class FakeLifestyleGenerationService:
                 ),
             ],
         )
+
+    async def download_generated_image(
+        self,
+        user_id: str,
+        listing_id: str,
+        image_id: str,
+    ) -> tuple[bytes, str, str]:
+        assert user_id == "user-1"
+        assert listing_id == "listing-1"
+        assert image_id == "generated-1"
+        return b"generated-png", "image/png", "listing-1-marketplace_hero_image.png"
+
+    async def delete_generated_image(
+        self,
+        user_id: str,
+        listing_id: str,
+        image_id: str,
+    ) -> None:
+        assert user_id == "user-1"
+        assert listing_id == "listing-1"
+        assert image_id == "generated-1"
 
 
 @pytest.fixture
@@ -72,14 +93,14 @@ def test_generate_lifestyle_scene_returns_generated_image(client: TestClient) ->
     response = client.post(
         "/api/v1/products/listings/listing-1/generated-images",
         json={
-            "scene_preset": "wooden_table_setup",
+            "category": "wooden_table_setup",
             "custom_prompt": "Use warm window light",
         },
     )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["scene_preset"] == "wooden_table_setup"
+    assert payload["category"] == "wooden_table_setup"
     assert payload["generated_image_url"] == "http://testserver/uploads/generated.png"
 
 
@@ -88,13 +109,29 @@ def test_list_lifestyle_scenes_returns_gallery(client: TestClient) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["images"][0]["scene_preset"] == "modern_ecommerce_hero_shot"
+    assert payload["images"][0]["category"] == "marketplace_hero_image"
+
+
+def test_download_lifestyle_scene_returns_image(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/products/listings/listing-1/generated-images/generated-1/download",
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"generated-png"
+    assert response.headers["content-type"] == "image/png"
+
+
+def test_delete_lifestyle_scene_returns_no_content(client: TestClient) -> None:
+    response = client.delete("/api/v1/products/listings/listing-1/generated-images/generated-1")
+
+    assert response.status_code == 204
 
 
 def test_generate_lifestyle_scene_validates_preset(client: TestClient) -> None:
     response = client.post(
         "/api/v1/products/listings/listing-1/generated-images",
-        json={"scene_preset": "rainforest"},
+        json={"category": "rainforest"},
     )
 
     assert response.status_code == 422
@@ -112,7 +149,7 @@ def test_generate_lifestyle_scene_requires_authentication() -> None:
     with TestClient(app) as test_client:
         response = test_client.post(
             "/api/v1/products/listings/listing-1/generated-images",
-            json={"scene_preset": "luxury_setup"},
+            json={"category": "luxury_product_shot"},
         )
 
     app.dependency_overrides.clear()
@@ -121,19 +158,20 @@ def test_generate_lifestyle_scene_requires_authentication() -> None:
 
 def build_generated_image(
     listing_id: str,
-    scene_preset: str = "modern_ecommerce_hero_shot",
+    category: str = "marketplace_hero_image",
     custom_prompt: str | None = None,
 ) -> GeneratedImage:
     return GeneratedImage(
         id="generated-1",
+        user_id="user-1",
         product_id="product-1",
         listing_id=listing_id,
-        source_image_id="image-1",
+        source_product_image_id="image-1",
         source_enhanced_image_id=None,
-        scene_preset=scene_preset,
+        category=category,
         custom_prompt=custom_prompt,
         prompt="Generate a product lifestyle scene.",
-        provider_name="fake-images",
+        provider="fake-images",
         storage_filename="generated.png",
         generated_image_url="http://testserver/uploads/generated.png",
         content_type="image/png",

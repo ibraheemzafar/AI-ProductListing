@@ -19,7 +19,7 @@ from app.features.lifestyle_generation.repositories import (
 from app.features.lifestyle_generation.schemas import (
     GeneratedImageGalleryResponse,
     GeneratedImageResponse,
-    ScenePreset,
+    ImageGenerationCategory,
 )
 from app.shared.storage.provider import StorageProvider
 
@@ -43,7 +43,7 @@ class LifestyleGenerationService:
         self,
         user_id: str,
         listing_id: str,
-        scene_preset: ScenePreset,
+        category: ImageGenerationCategory,
         custom_prompt: str | None,
     ) -> GeneratedImageResponse:
         if not listing_id.strip():
@@ -57,7 +57,7 @@ class LifestyleGenerationService:
             raise NotFoundError("Generated listing image was not found")
 
         prompt = self._prompt_builder.build_prompt(
-            scene_preset=scene_preset,
+            category=category,
             custom_prompt=custom_prompt,
         )
         started_at = perf_counter()
@@ -81,16 +81,17 @@ class LifestyleGenerationService:
             )
             saved_image = await self._repository.save_generated_image(
                 GeneratedImage(
+                    user_id=user_id,
                     product_id=source.listing.product_id,
                     listing_id=source.listing.id,
-                    source_image_id=source.product_image.id,
+                    source_product_image_id=source.product_image.id,
                     source_enhanced_image_id=(
                         source.enhanced_image.id if source.enhanced_image else None
                     ),
-                    scene_preset=scene_preset,
+                    category=category,
                     custom_prompt=custom_prompt.strip() if custom_prompt else None,
                     prompt=prompt.content,
-                    provider_name=self._generation_provider.provider_name,
+                    provider=self._generation_provider.provider_name,
                     storage_filename=storage_filename,
                     generated_image_url=generated_url,
                     content_type=generated_output.content_type,
@@ -143,6 +144,42 @@ class LifestyleGenerationService:
         return GeneratedImageGalleryResponse(
             images=[GeneratedImageResponse.from_model(image) for image in images],
         )
+
+    async def download_generated_image(
+        self,
+        user_id: str,
+        listing_id: str,
+        image_id: str,
+    ) -> tuple[bytes, str, str]:
+        image = await self._repository.get_generated_image_for_user(
+            listing_id=listing_id,
+            image_id=image_id,
+            user_id=user_id,
+        )
+        if image is None:
+            raise NotFoundError("Generated image was not found")
+
+        content = await self._storage_provider.read(image.storage_filename)
+        return content, image.content_type, self._download_filename(image)
+
+    async def delete_generated_image(
+        self,
+        user_id: str,
+        listing_id: str,
+        image_id: str,
+    ) -> None:
+        image = await self._repository.get_generated_image_for_user(
+            listing_id=listing_id,
+            image_id=image_id,
+            user_id=user_id,
+        )
+        if image is None:
+            raise NotFoundError("Generated image was not found")
+
+        try:
+            await self._storage_provider.delete(image.storage_filename)
+        finally:
+            await self._repository.delete_generated_image(image)
 
     async def _generate_with_retries(
         self,
@@ -204,3 +241,7 @@ class LifestyleGenerationService:
 
     def _elapsed_ms(self, started_at: float) -> int:
         return round((perf_counter() - started_at) * 1000)
+
+    def _download_filename(self, image: GeneratedImage) -> str:
+        extension = image.storage_filename.rsplit(".", 1)[-1]
+        return f"{image.listing_id}-{image.category}.{extension}"

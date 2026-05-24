@@ -4,14 +4,15 @@ import { getPublicEnv } from '@/lib/env';
 
 interface ApiGeneratedSceneImage {
   id: string;
+  user_id: string;
   product_id: string;
   listing_id: string;
-  source_image_id: string;
+  source_product_image_id: string;
   source_enhanced_image_id: string | null;
-  scene_preset: ScenePreset;
+  category: ScenePreset;
   custom_prompt: string | null;
   prompt: string;
-  provider_name: string;
+  provider: string;
   generated_image_url: string;
   content_type: string;
   size_bytes: number;
@@ -33,7 +34,7 @@ interface ApiErrorPayload {
 
 export async function generateLifestyleScene(
   listingId: string,
-  scenePreset: ScenePreset,
+  category: ScenePreset,
   customPrompt: string,
 ): Promise<GeneratedSceneImage> {
   const response = await fetch(
@@ -45,7 +46,7 @@ export async function generateLifestyleScene(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        scene_preset: scenePreset,
+        category,
         custom_prompt: customPrompt.trim() || null,
       }),
     },
@@ -90,14 +91,15 @@ async function readErrorMessage(response: Response): Promise<string> {
 function mapGeneratedScene(image: ApiGeneratedSceneImage): GeneratedSceneImage {
   return {
     id: image.id,
+    userId: image.user_id,
     productId: image.product_id,
     listingId: image.listing_id,
-    sourceImageId: image.source_image_id,
+    sourceProductImageId: image.source_product_image_id,
     sourceEnhancedImageId: image.source_enhanced_image_id,
-    scenePreset: image.scene_preset,
+    category: image.category,
     customPrompt: image.custom_prompt,
     prompt: image.prompt,
-    providerName: image.provider_name,
+    provider: image.provider,
     generatedImageUrl: image.generated_image_url,
     contentType: image.content_type,
     sizeBytes: image.size_bytes,
@@ -105,4 +107,39 @@ function mapGeneratedScene(image: ApiGeneratedSceneImage): GeneratedSceneImage {
     status: image.status,
     createdAt: image.created_at,
   };
+}
+
+export async function downloadGeneratedLifestyleScene(
+  listingId: string,
+  imageId: string,
+): Promise<Blob> {
+  const response = await fetch(
+    `${getPublicEnv().apiBaseUrl}/products/listings/${listingId}/generated-images/${imageId}/download`,
+    {
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  return response.blob();
+}
+
+export async function deleteGeneratedLifestyleScene(
+  listingId: string,
+  imageId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${getPublicEnv().apiBaseUrl}/products/listings/${listingId}/generated-images/${imageId}`,
+    {
+      method: 'DELETE',
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
 }

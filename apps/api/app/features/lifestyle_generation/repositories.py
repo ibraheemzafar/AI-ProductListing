@@ -36,6 +36,17 @@ class LifestyleGenerationRepository(Protocol):
     ) -> list[GeneratedImage] | None:
         pass
 
+    async def get_generated_image_for_user(
+        self,
+        listing_id: str,
+        image_id: str,
+        user_id: str,
+    ) -> GeneratedImage | None:
+        pass
+
+    async def delete_generated_image(self, image: GeneratedImage) -> None:
+        pass
+
     async def create_request_log(self, log: AiRequestLog) -> None:
         pass
 
@@ -90,10 +101,29 @@ class SQLAlchemyLifestyleGenerationRepository:
 
         result = await self._database_session.execute(
             select(GeneratedImage)
-            .where(GeneratedImage.listing_id == listing_id)
+            .where(GeneratedImage.listing_id == listing_id, GeneratedImage.user_id == user_id)
             .order_by(desc(GeneratedImage.created_at)),
         )
         return list(result.scalars().all())
+
+    async def get_generated_image_for_user(
+        self,
+        listing_id: str,
+        image_id: str,
+        user_id: str,
+    ) -> GeneratedImage | None:
+        result = await self._database_session.execute(
+            select(GeneratedImage).where(
+                GeneratedImage.id == image_id,
+                GeneratedImage.listing_id == listing_id,
+                GeneratedImage.user_id == user_id,
+            ),
+        )
+        return result.scalar_one_or_none()
+
+    async def delete_generated_image(self, image: GeneratedImage) -> None:
+        await self._database_session.delete(image)
+        await self._database_session.commit()
 
     async def create_request_log(self, log: AiRequestLog) -> None:
         self._database_session.add(log)

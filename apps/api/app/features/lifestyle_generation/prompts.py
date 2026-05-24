@@ -2,8 +2,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.core.errors import ConfigurationError
-from app.features.lifestyle_generation.schemas import ScenePreset
+from app.core.errors import AppError, ConfigurationError
+from app.features.lifestyle_generation.schemas import ImageGenerationCategory
 
 
 @dataclass(frozen=True)
@@ -18,16 +18,20 @@ class LifestyleScenePromptBuilder:
 
     def build_prompt(
         self,
-        scene_preset: ScenePreset,
+        category: ImageGenerationCategory,
         custom_prompt: str | None,
     ) -> PromptTemplate:
         if not self._prompt_path.exists():
             raise ConfigurationError("Lifestyle scene generator prompt is missing")
 
+        normalized_custom_prompt = custom_prompt.strip() if custom_prompt else None
+        if category == "custom_prompt" and not normalized_custom_prompt:
+            raise AppError("Custom prompt is required for custom image generation")
+
         scene_context = {
-            "scene_preset": scene_preset,
-            "preset_guidance": self._preset_guidance(scene_preset),
-            "custom_prompt": custom_prompt.strip() if custom_prompt else None,
+            "category": category,
+            "preset_guidance": self._preset_guidance(category),
+            "custom_prompt": normalized_custom_prompt,
         }
         content = self._prompt_path.read_text(encoding="utf-8").strip()
         return PromptTemplate(
@@ -38,15 +42,20 @@ class LifestyleScenePromptBuilder:
             version="lifestyle-scene-generator-v1",
         )
 
-    def _preset_guidance(self, scene_preset: ScenePreset) -> str:
+    def _preset_guidance(self, category: ImageGenerationCategory) -> str:
         guidance = {
-            "luxury_setup": "Premium lighting, refined props, elegant retail composition.",
+            "studio_white_background": "Clean white studio background, soft shadow, no clutter.",
+            "luxury_product_shot": "Premium lighting, refined props, elegant retail composition.",
             "wooden_table_setup": "Natural wood surface, warm lighting, simple product styling.",
-            "studio_white_background": "Clean white studio scene with soft shadows and no clutter.",
-            "cozy_home_environment": "Warm home setting with soft textures and realistic ambience.",
-            "modern_ecommerce_hero_shot": "Polished hero image with modern ecommerce composition.",
+            "minimal_ecommerce_background": "Minimal ecommerce background with subtle depth.",
+            "lifestyle_home_setup": "Warm home setting with soft textures and realistic ambience.",
+            "social_media_banner": (
+                "Wide social media banner composition with room for overlay copy."
+            ),
+            "marketplace_hero_image": "Polished marketplace hero image with clear product focus.",
+            "custom_prompt": "Follow the custom prompt while preserving the product accurately.",
         }
-        return guidance[scene_preset]
+        return guidance[category]
 
     def _find_prompt_path(self) -> Path:
         for parent in Path(__file__).resolve().parents:

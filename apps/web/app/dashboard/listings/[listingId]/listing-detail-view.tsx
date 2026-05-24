@@ -1,10 +1,19 @@
 'use client';
 
-import { Clipboard, Download, ImageIcon, SearchCheck, ShoppingBag, Sparkles } from 'lucide-react';
+import {
+  Clipboard,
+  Download,
+  ImageIcon,
+  SearchCheck,
+  ShoppingBag,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import type {
   GeneratedListing,
+  GeneratedSceneImage,
   EnhancedImageResult,
   ImageEnhancementOperation,
   ListingDetail,
@@ -12,10 +21,17 @@ import type {
   ListingVersion,
   Marketplace,
   MarketplaceOptimizationResult,
+  ScenePreset,
   SeoAnalysisResult,
 } from '@ai-product-listing/types';
 import { Button } from '@/components/ui/button';
 import { enhanceListingImage } from '@/lib/api/image-enhancements';
+import {
+  deleteGeneratedLifestyleScene,
+  downloadGeneratedLifestyleScene,
+  generateLifestyleScene,
+  getGeneratedLifestyleScenes,
+} from '@/lib/api/lifestyle-scenes';
 import { getListingJsonExport, getListingShopifyCsvExport } from '@/lib/api/listing-exports';
 import {
   acceptListingVersion,
@@ -42,6 +58,9 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   const [selectedMarketplace, setSelectedMarketplace] = useState<Marketplace>('shopify');
   const [selectedEnhancement, setSelectedEnhancement] =
     useState<ImageEnhancementOperation>('background_removal');
+  const [selectedSceneCategory, setSelectedSceneCategory] =
+    useState<ScenePreset>('marketplace_hero_image');
+  const [customScenePrompt, setCustomScenePrompt] = useState('');
   const [acceptingVersionId, setAcceptingVersionId] = useState<string | null>(null);
   const [seoAnalysis, setSeoAnalysis] = useState<SeoAnalysisResult | null>(null);
   const [seoErrorMessage, setSeoErrorMessage] = useState<string | null>(null);
@@ -54,11 +73,17 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   const [enhancedImage, setEnhancedImage] = useState<EnhancedImageResult | null>(null);
   const [imageEnhancementErrorMessage, setImageEnhancementErrorMessage] =
     useState<string | null>(null);
+  const [isSceneGenerating, setIsSceneGenerating] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState<GeneratedSceneImage | null>(null);
+  const [generatedImages, setGeneratedImages] = useState<GeneratedSceneImage[]>([]);
+  const [generatedImageErrorMessage, setGeneratedImageErrorMessage] = useState<string | null>(null);
+  const [deletingGeneratedImageId, setDeletingGeneratedImageId] = useState<string | null>(null);
   const keywords = activeListing.seoKeywords.join(', ');
   const tags = activeListing.productTags.join(', ');
 
   useEffect(() => {
     void loadVersions();
+    void loadGeneratedImages();
   }, []);
 
   async function copyText(key: string, value: string) {
@@ -197,6 +222,61 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     showToast('Enhanced image download started.');
   }
 
+  async function handleGenerateImage() {
+    setIsSceneGenerating(true);
+    setGeneratedImageErrorMessage(null);
+    try {
+      const result = await generateLifestyleScene(
+        listing.id,
+        selectedSceneCategory,
+        customScenePrompt,
+      );
+      setGeneratedImage(result);
+      setGeneratedImages((current) => [result, ...current]);
+      showToast('Generated image saved.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Image generation failed.';
+      setGeneratedImageErrorMessage(message);
+      showToast(message);
+    } finally {
+      setIsSceneGenerating(false);
+    }
+  }
+
+  async function downloadGeneratedImage(image: GeneratedSceneImage) {
+    try {
+      const blob = await downloadGeneratedLifestyleScene(listing.id, image.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${listing.id}-${image.category}.png`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast('Generated image download started.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Download failed. Please try again.');
+    }
+  }
+
+  async function deleteGeneratedImage(image: GeneratedSceneImage) {
+    const confirmed = window.confirm('Delete this generated image?');
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingGeneratedImageId(image.id);
+    try {
+      await deleteGeneratedLifestyleScene(listing.id, image.id);
+      setGeneratedImages((current) => current.filter((item) => item.id !== image.id));
+      setGeneratedImage((current) => (current?.id === image.id ? null : current));
+      showToast('Generated image deleted.');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Delete failed. Please try again.');
+    } finally {
+      setDeletingGeneratedImageId(null);
+    }
+  }
+
   async function handleAcceptVersion(version: ListingVersion) {
     setAcceptingVersionId(version.id);
     try {
@@ -223,6 +303,16 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
       setVersions(history.versions);
     } catch {
       setVersions([]);
+    }
+  }
+
+  async function loadGeneratedImages() {
+    try {
+      const gallery = await getGeneratedLifestyleScenes(listing.id);
+      setGeneratedImages(gallery.images);
+      setGeneratedImage(gallery.images[0] ?? null);
+    } catch {
+      setGeneratedImages([]);
     }
   }
 
@@ -344,6 +434,47 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
               {isImageEnhancing ? 'Enhancing Image' : 'Enhance Image'}
             </Button>
           </div>
+          <div className="grid w-full gap-2 md:grid-cols-[220px_minmax(0,1fr)_auto]">
+            <select
+              aria-label="Image generation category"
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={selectedSceneCategory}
+              onChange={(event) => setSelectedSceneCategory(event.target.value as ScenePreset)}
+              disabled={isSceneGenerating}
+            >
+              <option value="studio_white_background">Studio white background</option>
+              <option value="luxury_product_shot">Luxury product shot</option>
+              <option value="wooden_table_setup">Wooden table setup</option>
+              <option value="minimal_ecommerce_background">Minimal ecommerce background</option>
+              <option value="lifestyle_home_setup">Lifestyle home setup</option>
+              <option value="social_media_banner">Social media banner</option>
+              <option value="marketplace_hero_image">Marketplace hero image</option>
+              <option value="custom_prompt">Custom prompt</option>
+            </select>
+            {selectedSceneCategory === 'custom_prompt' ? (
+              <input
+                aria-label="Custom image generation prompt"
+                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 text-sm"
+                value={customScenePrompt}
+                onChange={(event) => setCustomScenePrompt(event.target.value)}
+                placeholder="Describe the generated product scene"
+                disabled={isSceneGenerating}
+              />
+            ) : (
+              <div className="hidden md:block" />
+            )}
+            <Button
+              type="button"
+              onClick={handleGenerateImage}
+              disabled={
+                isSceneGenerating ||
+                (selectedSceneCategory === 'custom_prompt' && !customScenePrompt.trim())
+              }
+            >
+              <ImageIcon className="mr-2 size-4" aria-hidden="true" />
+              {isSceneGenerating ? 'Generating' : 'Generate Image'}
+            </Button>
+          </div>
         </div>
 
         {seoErrorMessage ? <p className="text-sm text-red-600">{seoErrorMessage}</p> : null}
@@ -387,6 +518,28 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
             onDownload={downloadEnhancedImage}
           />
         ) : null}
+
+        {generatedImageErrorMessage ? (
+          <p className="text-sm text-red-600">{generatedImageErrorMessage}</p>
+        ) : null}
+
+        {isSceneGenerating ? <ImageProcessingProgress label="Generating image" /> : null}
+
+        {generatedImage ? (
+          <GeneratedImagePanel
+            image={generatedImage}
+            onDownload={downloadGeneratedImage}
+            onDelete={deleteGeneratedImage}
+            isDeleting={deletingGeneratedImageId === generatedImage.id}
+          />
+        ) : null}
+
+        <GeneratedImageGallery
+          images={generatedImages}
+          deletingGeneratedImageId={deletingGeneratedImageId}
+          onDownload={downloadGeneratedImage}
+          onDelete={deleteGeneratedImage}
+        />
 
         <VersionHistory
           versions={versions}
@@ -434,11 +587,11 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   );
 }
 
-function ImageProcessingProgress() {
+function ImageProcessingProgress({ label = 'Image processing' }: { label?: string }) {
   return (
     <section className="rounded-md border border-border p-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-medium">Image processing</h2>
+        <h2 className="text-base font-medium">{label}</h2>
         <span className="text-sm text-muted-foreground">In progress</span>
       </div>
       <div className="mt-4 h-2 overflow-hidden rounded bg-muted">
@@ -446,9 +599,118 @@ function ImageProcessingProgress() {
       </div>
       <ol className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
         <li className="rounded bg-muted px-3 py-2">Preparing image</li>
-        <li className="rounded bg-muted px-3 py-2">Processing enhancement</li>
+        <li className="rounded bg-muted px-3 py-2">Processing image</li>
         <li className="rounded bg-muted px-3 py-2">Saving result</li>
       </ol>
+    </section>
+  );
+}
+
+const sceneCategoryLabels: Record<ScenePreset, string> = {
+  studio_white_background: 'Studio white background',
+  luxury_product_shot: 'Luxury product shot',
+  wooden_table_setup: 'Wooden table setup',
+  minimal_ecommerce_background: 'Minimal ecommerce background',
+  lifestyle_home_setup: 'Lifestyle home setup',
+  social_media_banner: 'Social media banner',
+  marketplace_hero_image: 'Marketplace hero image',
+  custom_prompt: 'Custom prompt',
+};
+
+interface GeneratedImagePanelProps {
+  image: GeneratedSceneImage;
+  onDownload: (image: GeneratedSceneImage) => Promise<void>;
+  onDelete: (image: GeneratedSceneImage) => Promise<void>;
+  isDeleting: boolean;
+}
+
+function GeneratedImagePanel({
+  image,
+  onDownload,
+  onDelete,
+  isDeleting,
+}: GeneratedImagePanelProps) {
+  return (
+    <section className="rounded-md border border-border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-medium">Generated image</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {sceneCategoryLabels[image.category]} via {image.provider}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" onClick={() => onDownload(image)}>
+            <Download className="mr-2 size-4" aria-hidden="true" />
+            Download
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => onDelete(image)} disabled={isDeleting}>
+            <Trash2 className="mr-2 size-4" aria-hidden="true" />
+            {isDeleting ? 'Deleting' : 'Delete'}
+          </Button>
+        </div>
+      </div>
+      <img
+        alt={`${sceneCategoryLabels[image.category]} generated product image`}
+        className="mt-4 aspect-square w-full rounded-md border border-border object-cover"
+        src={image.generatedImageUrl}
+      />
+    </section>
+  );
+}
+
+interface GeneratedImageGalleryProps {
+  images: GeneratedSceneImage[];
+  deletingGeneratedImageId: string | null;
+  onDownload: (image: GeneratedSceneImage) => Promise<void>;
+  onDelete: (image: GeneratedSceneImage) => Promise<void>;
+}
+
+function GeneratedImageGallery({
+  images,
+  deletingGeneratedImageId,
+  onDownload,
+  onDelete,
+}: GeneratedImageGalleryProps) {
+  return (
+    <section className="rounded-md border border-border p-4">
+      <h2 className="text-base font-medium">Generated images</h2>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {images.length > 0 ? (
+          images.map((image) => (
+            <div key={image.id} className="rounded-md border border-border p-3">
+              <img
+                alt={`${sceneCategoryLabels[image.category]} preview`}
+                className="aspect-square w-full rounded-md object-cover"
+                src={image.generatedImageUrl}
+              />
+              <div className="mt-3 grid gap-1">
+                <p className="text-sm font-medium">{sceneCategoryLabels[image.category]}</p>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(image.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <Button type="button" variant="secondary" onClick={() => onDownload(image)}>
+                  <Download className="mr-2 size-4" aria-hidden="true" />
+                  Download
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => onDelete(image)}
+                  disabled={deletingGeneratedImageId === image.id}
+                >
+                  <Trash2 className="mr-2 size-4" aria-hidden="true" />
+                  {deletingGeneratedImageId === image.id ? 'Deleting' : 'Delete'}
+                </Button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-muted-foreground">No generated images yet.</p>
+        )}
+      </div>
     </section>
   );
 }
