@@ -1,15 +1,17 @@
 'use client';
 
 import {
+  Check,
   Clipboard,
   Download,
   ImageIcon,
+  RefreshCw,
   SearchCheck,
   ShoppingBag,
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 import type {
   GeneratedListing,
@@ -25,6 +27,8 @@ import type {
   SeoAnalysisResult,
 } from '@ai-product-listing/types';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { notifyWalletChanged } from '@/lib/api/billing';
 import { enhanceListingImage } from '@/lib/api/image-enhancements';
 import {
   deleteGeneratedLifestyleScene,
@@ -37,9 +41,39 @@ import {
   acceptListingVersion,
   getListingVersions,
   improveListing,
+  regenerateListing,
 } from '@/lib/api/listing-improvements';
-import { optimizeListingForMarketplace } from '@/lib/api/marketplace-optimizations';
+import {
+  getMarketplaceOptimizations,
+  optimizeListingForMarketplace,
+} from '@/lib/api/marketplace-optimizations';
 import { analyzeListingSeo } from '@/lib/api/seo-analysis';
+
+const MARKETPLACES: { value: Marketplace; label: string }[] = [
+  { value: 'shopify', label: 'Shopify' },
+  { value: 'amazon', label: 'Amazon' },
+  { value: 'etsy', label: 'Etsy' },
+  { value: 'daraz', label: 'Daraz' },
+];
+
+// One merged "Image Studio" control. Each option is prefixed so a single Run button can
+// dispatch to either the touch-up (enhance) or the generate-a-new-shot (scene) workflow.
+const ENHANCEMENT_OPTIONS: { value: ImageEnhancementOperation; label: string }[] = [
+  { value: 'background_removal', label: 'Background removal' },
+  { value: 'image_cleanup', label: 'Image cleanup' },
+  { value: 'image_optimization', label: 'Image optimization' },
+];
+
+const SCENE_OPTIONS: { value: ScenePreset; label: string }[] = [
+  { value: 'studio_white_background', label: 'Studio white background' },
+  { value: 'luxury_product_shot', label: 'Luxury product shot' },
+  { value: 'wooden_table_setup', label: 'Wooden table setup' },
+  { value: 'minimal_ecommerce_background', label: 'Minimal ecommerce background' },
+  { value: 'lifestyle_home_setup', label: 'Lifestyle home setup' },
+  { value: 'social_media_banner', label: 'Social media banner' },
+  { value: 'marketplace_hero_image', label: 'Marketplace hero image' },
+  { value: 'custom_prompt', label: 'Custom prompt' },
+];
 
 interface ListingDetailViewProps {
   listing: ListingDetail;
@@ -53,13 +87,12 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   const [isShopifyExporting, setIsShopifyExporting] = useState(false);
   const [isSeoAnalyzing, setIsSeoAnalyzing] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [isMarketplaceOptimizing, setIsMarketplaceOptimizing] = useState(false);
   const [isImageEnhancing, setIsImageEnhancing] = useState(false);
   const [selectedMarketplace, setSelectedMarketplace] = useState<Marketplace>('shopify');
-  const [selectedEnhancement, setSelectedEnhancement] =
-    useState<ImageEnhancementOperation>('background_removal');
-  const [selectedSceneCategory, setSelectedSceneCategory] =
-    useState<ScenePreset>('marketplace_hero_image');
+  // Composite "<kind>:<value>" so a single dropdown + Run button drives both image workflows.
+  const [imageStudioSelection, setImageStudioSelection] = useState('enhance:background_removal');
   const [customScenePrompt, setCustomScenePrompt] = useState('');
   const [acceptingVersionId, setAcceptingVersionId] = useState<string | null>(null);
   const [seoAnalysis, setSeoAnalysis] = useState<SeoAnalysisResult | null>(null);
@@ -67,8 +100,9 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   const [improvement, setImprovement] = useState<ListingImprovementResult | null>(null);
   const [versions, setVersions] = useState<ListingVersion[]>([]);
   const [improvementErrorMessage, setImprovementErrorMessage] = useState<string | null>(null);
-  const [marketplaceOptimization, setMarketplaceOptimization] =
-    useState<MarketplaceOptimizationResult | null>(null);
+  const [marketplaceOptimizationsByMarket, setMarketplaceOptimizationsByMarket] = useState<
+    Record<string, MarketplaceOptimizationResult>
+  >({});
   const [marketplaceErrorMessage, setMarketplaceErrorMessage] = useState<string | null>(null);
   const [enhancedImage, setEnhancedImage] = useState<EnhancedImageResult | null>(null);
   const [imageEnhancementErrorMessage, setImageEnhancementErrorMessage] = useState<string | null>(
@@ -81,10 +115,14 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   const [deletingGeneratedImageId, setDeletingGeneratedImageId] = useState<string | null>(null);
   const keywords = activeListing.seoKeywords.join(', ');
   const tags = activeListing.productTags.join(', ');
+  const marketplaceOptimization = marketplaceOptimizationsByMarket[selectedMarketplace] ?? null;
+  const isImageBusy = isImageEnhancing || isSceneGenerating;
+  const isCustomScene = imageStudioSelection === 'scene:custom_prompt';
 
   useEffect(() => {
     void loadVersions();
     void loadGeneratedImages();
+    void loadMarketplaceOptimizations();
   }, []);
 
   async function copyText(key: string, value: string) {
@@ -180,13 +218,41 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     }
   }
 
-  async function handleMarketplaceOptimization() {
+  async function handleRegenerateListing() {
+    setIsRegenerating(true);
+    setImprovementErrorMessage(null);
+    try {
+      const version = await regenerateListing(listing.id);
+      setVersions((current) => [version, ...current]);
+      notifyWalletChanged();
+      showToast('New version generated. Accept it to make it the live copy.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Listing regeneration failed.';
+      setImprovementErrorMessage(message);
+      showToast(message);
+    } finally {
+      setIsRegenerating(false);
+    }
+  }
+
+  async function handleMarketplaceOptimization(force = false) {
+    const alreadyOptimized = Boolean(marketplaceOptimizationsByMarket[selectedMarketplace]);
+    if (force && !window.confirm('Re-optimize for this marketplace? This spends credits.')) {
+      return;
+    }
+
     setIsMarketplaceOptimizing(true);
     setMarketplaceErrorMessage(null);
     try {
-      const result = await optimizeListingForMarketplace(listing.id, selectedMarketplace);
-      setMarketplaceOptimization(result);
-      showToast('Marketplace optimization completed.');
+      const result = await optimizeListingForMarketplace(listing.id, selectedMarketplace, force);
+      setMarketplaceOptimizationsByMarket((current) => ({
+        ...current,
+        [result.marketplace]: result,
+      }));
+      if (!alreadyOptimized || force) {
+        notifyWalletChanged();
+      }
+      showToast(force ? 'Marketplace optimization refreshed.' : 'Marketplace optimization ready.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Marketplace optimization failed.';
       setMarketplaceErrorMessage(message);
@@ -196,12 +262,23 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     }
   }
 
-  async function handleEnhanceImage() {
+  // Single entry point for the merged Image Studio control: route to touch-up vs generate.
+  function handleImageStudioRun() {
+    const [kind, value] = imageStudioSelection.split(':');
+    if (kind === 'enhance') {
+      void handleEnhanceImage(value as ImageEnhancementOperation);
+    } else {
+      void handleGenerateImage(value as ScenePreset);
+    }
+  }
+
+  async function handleEnhanceImage(operation: ImageEnhancementOperation) {
     setIsImageEnhancing(true);
     setImageEnhancementErrorMessage(null);
     try {
-      const result = await enhanceListingImage(listing.id, selectedEnhancement);
+      const result = await enhanceListingImage(listing.id, operation);
       setEnhancedImage(result);
+      notifyWalletChanged();
       showToast('Image enhancement completed.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Image enhancement failed.';
@@ -223,17 +300,14 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     showToast('Enhanced image download started.');
   }
 
-  async function handleGenerateImage() {
+  async function handleGenerateImage(preset: ScenePreset) {
     setIsSceneGenerating(true);
     setGeneratedImageErrorMessage(null);
     try {
-      const result = await generateLifestyleScene(
-        listing.id,
-        selectedSceneCategory,
-        customScenePrompt,
-      );
+      const result = await generateLifestyleScene(listing.id, preset, customScenePrompt);
       setGeneratedImage(result);
       setGeneratedImages((current) => [result, ...current]);
+      notifyWalletChanged();
       showToast('Generated image saved.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Image generation failed.';
@@ -318,6 +392,17 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     }
   }
 
+  async function loadMarketplaceOptimizations() {
+    try {
+      const optimizations = await getMarketplaceOptimizations(listing.id);
+      setMarketplaceOptimizationsByMarket(
+        Object.fromEntries(optimizations.map((item) => [item.marketplace, item])),
+      );
+    } catch {
+      setMarketplaceOptimizationsByMarket({});
+    }
+  }
+
   function showToast(message: string) {
     setToastMessage(message);
     window.setTimeout(() => setToastMessage(null), 2500);
@@ -364,119 +449,140 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
           </div>
         ) : null}
 
-        <div className="glass-panel flex flex-wrap gap-3 p-4">
-          <Button type="button" onClick={copyAll}>
-            <Clipboard className="mr-2 size-4" aria-hidden="true" />
-            {copiedKey === 'copy-all' ? 'Copied All' : 'Copy All'}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={downloadJson}
-            disabled={isJsonExporting}
-          >
-            <Download className="mr-2 size-4" aria-hidden="true" />
-            {isJsonExporting ? 'Downloading' : 'Download JSON'}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={downloadShopifyCsv}
-            disabled={isShopifyExporting}
-          >
-            <Download className="mr-2 size-4" aria-hidden="true" />
-            {isShopifyExporting ? 'Downloading' : 'Download Shopify CSV'}
-          </Button>
-          <Button type="button" onClick={handleAnalyzeSeo} disabled={isSeoAnalyzing}>
-            <SearchCheck className="mr-2 size-4" aria-hidden="true" />
-            {isSeoAnalyzing ? 'Analyzing SEO' : 'Analyze SEO'}
-          </Button>
-          <Button type="button" onClick={handleImproveListing} disabled={isImproving}>
-            <Sparkles className="mr-2 size-4" aria-hidden="true" />
-            {isImproving ? 'Improving' : 'Improve with AI'}
-          </Button>
-          <div className="flex flex-wrap gap-2">
-            <select
-              aria-label="Marketplace"
-              className="field-surface h-10"
-              value={selectedMarketplace}
-              onChange={(event) => setSelectedMarketplace(event.target.value as Marketplace)}
-              disabled={isMarketplaceOptimizing}
-            >
-              <option value="shopify">Shopify</option>
-              <option value="amazon">Amazon</option>
-              <option value="etsy">Etsy</option>
-              <option value="daraz">Daraz</option>
-            </select>
+        <div className="glass-panel grid gap-5 p-4">
+          <ToolbarStep step={1} label="Copy & export">
+            <Button type="button" onClick={copyAll}>
+              <Clipboard className="mr-2 size-4" aria-hidden="true" />
+              {copiedKey === 'copy-all' ? 'Copied All' : 'Copy All'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={downloadJson} disabled={isJsonExporting}>
+              <Download className="mr-2 size-4" aria-hidden="true" />
+              {isJsonExporting ? 'Downloading' : 'JSON'}
+            </Button>
             <Button
               type="button"
-              onClick={handleMarketplaceOptimization}
-              disabled={isMarketplaceOptimizing}
+              variant="secondary"
+              onClick={downloadShopifyCsv}
+              disabled={isShopifyExporting}
             >
-              <ShoppingBag className="mr-2 size-4" aria-hidden="true" />
-              {isMarketplaceOptimizing ? 'Optimizing' : 'Optimize for Marketplace'}
+              <Download className="mr-2 size-4" aria-hidden="true" />
+              {isShopifyExporting ? 'Downloading' : 'Shopify CSV'}
             </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <select
-              aria-label="Image enhancement"
-              className="field-surface h-10"
-              value={selectedEnhancement}
-              onChange={(event) =>
-                setSelectedEnhancement(event.target.value as ImageEnhancementOperation)
-              }
-              disabled={isImageEnhancing}
-            >
-              <option value="background_removal">Background removal</option>
-              <option value="image_cleanup">Image cleanup</option>
-              <option value="image_optimization">Image optimization</option>
-            </select>
-            <Button type="button" onClick={handleEnhanceImage} disabled={isImageEnhancing}>
-              <ImageIcon className="mr-2 size-4" aria-hidden="true" />
-              {isImageEnhancing ? 'Enhancing Image' : 'Enhance Image'}
+          </ToolbarStep>
+
+          <ToolbarStep step={2} label="SEO score">
+            <Button type="button" onClick={handleAnalyzeSeo} disabled={isSeoAnalyzing}>
+              <SearchCheck className="mr-2 size-4" aria-hidden="true" />
+              {isSeoAnalyzing ? 'Analyzing SEO' : 'Analyze SEO'}
             </Button>
-          </div>
-          <div className="grid w-full gap-2 md:grid-cols-[220px_minmax(0,1fr)_auto]">
-            <select
-              aria-label="Image generation category"
-              className="field-surface h-10"
-              value={selectedSceneCategory}
-              onChange={(event) => setSelectedSceneCategory(event.target.value as ScenePreset)}
-              disabled={isSceneGenerating}
-            >
-              <option value="studio_white_background">Studio white background</option>
-              <option value="luxury_product_shot">Luxury product shot</option>
-              <option value="wooden_table_setup">Wooden table setup</option>
-              <option value="minimal_ecommerce_background">Minimal ecommerce background</option>
-              <option value="lifestyle_home_setup">Lifestyle home setup</option>
-              <option value="social_media_banner">Social media banner</option>
-              <option value="marketplace_hero_image">Marketplace hero image</option>
-              <option value="custom_prompt">Custom prompt</option>
-            </select>
-            {selectedSceneCategory === 'custom_prompt' ? (
-              <input
-                aria-label="Custom image generation prompt"
-                className="field-surface h-10 min-w-0"
-                value={customScenePrompt}
-                onChange={(event) => setCustomScenePrompt(event.target.value)}
-                placeholder="Describe the generated product scene"
-                disabled={isSceneGenerating}
-              />
-            ) : (
-              <div className="hidden md:block" />
-            )}
+          </ToolbarStep>
+
+          <ToolbarStep step={3} label="Refine copy">
+            <Button type="button" onClick={handleImproveListing} disabled={isImproving}>
+              <Sparkles className="mr-2 size-4" aria-hidden="true" />
+              {isImproving ? 'Improving' : 'Improve with AI'}
+            </Button>
             <Button
               type="button"
-              onClick={handleGenerateImage}
-              disabled={
-                isSceneGenerating ||
-                (selectedSceneCategory === 'custom_prompt' && !customScenePrompt.trim())
-              }
+              variant="secondary"
+              onClick={handleRegenerateListing}
+              disabled={isRegenerating}
             >
-              <ImageIcon className="mr-2 size-4" aria-hidden="true" />
-              {isSceneGenerating ? 'Generating' : 'Generate Image'}
+              <RefreshCw className="mr-2 size-4" aria-hidden="true" />
+              {isRegenerating ? 'Regenerating' : 'Regenerate'}
             </Button>
-          </div>
+          </ToolbarStep>
+
+          <ToolbarStep step={4} label="Image studio">
+            <div className="flex w-full flex-wrap items-center gap-2">
+              <select
+                aria-label="Image studio action"
+                className="field-surface h-10 min-w-[220px]"
+                value={imageStudioSelection}
+                onChange={(event) => setImageStudioSelection(event.target.value)}
+                disabled={isImageBusy}
+              >
+                <optgroup label="Touch up original">
+                  {ENHANCEMENT_OPTIONS.map((option) => (
+                    <option key={option.value} value={`enhance:${option.value}`}>
+                      {option.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Generate new shot">
+                  {SCENE_OPTIONS.map((option) => (
+                    <option key={option.value} value={`scene:${option.value}`}>
+                      {option.label}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+              {isCustomScene ? (
+                <input
+                  aria-label="Custom image generation prompt"
+                  className="field-surface h-10 min-w-0 flex-1"
+                  value={customScenePrompt}
+                  onChange={(event) => setCustomScenePrompt(event.target.value)}
+                  placeholder="Describe the generated product scene"
+                  disabled={isImageBusy}
+                />
+              ) : null}
+              <Button
+                type="button"
+                onClick={handleImageStudioRun}
+                disabled={isImageBusy || (isCustomScene && !customScenePrompt.trim())}
+              >
+                <ImageIcon className="mr-2 size-4" aria-hidden="true" />
+                {isImageBusy ? 'Working' : 'Run'}
+              </Button>
+            </div>
+          </ToolbarStep>
+
+          <ToolbarStep step={5} label="Marketplace">
+            <div className="flex w-full flex-wrap items-center gap-2">
+              {MARKETPLACES.map((market) => {
+                const optimized = Boolean(marketplaceOptimizationsByMarket[market.value]);
+                const isSelected = selectedMarketplace === market.value;
+                return (
+                  <button
+                    key={market.value}
+                    type="button"
+                    onClick={() => setSelectedMarketplace(market.value)}
+                    aria-pressed={isSelected}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition',
+                      isSelected
+                        ? 'border-primary/60 bg-primary/20 text-white'
+                        : 'border-white/10 bg-white/[0.03] text-muted-foreground hover:border-primary/35 hover:text-white',
+                    )}
+                  >
+                    {optimized ? <Check className="size-3 text-primary" aria-hidden="true" /> : null}
+                    {market.label}
+                  </button>
+                );
+              })}
+              {marketplaceOptimization ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => handleMarketplaceOptimization(true)}
+                  disabled={isMarketplaceOptimizing}
+                >
+                  <RefreshCw className="mr-2 size-4" aria-hidden="true" />
+                  {isMarketplaceOptimizing ? 'Optimizing' : 'Re-optimize'}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={() => handleMarketplaceOptimization(false)}
+                  disabled={isMarketplaceOptimizing}
+                >
+                  <ShoppingBag className="mr-2 size-4" aria-hidden="true" />
+                  {isMarketplaceOptimizing ? 'Optimizing' : 'Optimize'}
+                </Button>
+              )}
+            </div>
+          </ToolbarStep>
         </div>
 
         {seoErrorMessage ? <ErrorMessage message={seoErrorMessage} /> : null}
@@ -579,6 +685,30 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
           onCopy={copyText}
         />
       </section>
+    </div>
+  );
+}
+
+function ToolbarStep({
+  step,
+  label,
+  children,
+}: {
+  step: number;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2 border-t border-white/10 pt-4 first:border-t-0 first:pt-0 sm:flex-row sm:items-center">
+      <div className="flex items-center gap-2 sm:w-44 sm:shrink-0">
+        <span className="flex size-5 items-center justify-center rounded-full border border-primary/50 text-[11px] font-semibold text-white">
+          {step}
+        </span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+      </div>
+      <div className="flex flex-1 flex-wrap items-center gap-2">{children}</div>
     </div>
   );
 }
@@ -924,25 +1054,43 @@ interface VersionHistoryProps {
   onAccept: (version: ListingVersion) => Promise<void>;
 }
 
+const VERSION_SOURCE_LABELS: Record<string, string> = {
+  ai_improvement: 'AI improvement',
+  regeneration: 'Regenerated',
+};
+
 function VersionHistory({ versions, acceptingVersionId, onAccept }: VersionHistoryProps) {
   return (
     <section className="glass-panel p-4">
       <h2 className="text-base font-semibold text-white">Version history</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Every improvement and regeneration is kept here. Accept one to make it the live copy.
+      </p>
       <div className="mt-3 grid gap-3">
         {versions.length > 0 ? (
           versions.map((version) => (
             <div
               key={version.id}
-              className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-3 sm:grid-cols-[minmax(0,1fr)_auto]"
+              className={cn(
+                'grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_auto]',
+                version.isAccepted
+                  ? 'border-primary/50 bg-primary/10'
+                  : 'border-white/10 bg-white/[0.04]',
+              )}
             >
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-white">
-                  Version {version.versionNumber}
-                  {version.isAccepted ? ' - accepted' : ''}
-                </p>
-                <p className="mt-1 truncate text-sm text-muted-foreground">
-                  {version.listing.title}
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-white">Version {version.versionNumber}</p>
+                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] text-muted-foreground">
+                    {VERSION_SOURCE_LABELS[version.source] ?? version.source}
+                  </span>
+                  {version.isAccepted ? (
+                    <span className="rounded-full border border-primary/50 bg-primary/20 px-2 py-0.5 text-[11px] font-medium text-white">
+                      Live
+                    </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 truncate text-sm text-muted-foreground">{version.listing.title}</p>
               </div>
               <Button
                 type="button"
@@ -955,7 +1103,7 @@ function VersionHistory({ versions, acceptingVersionId, onAccept }: VersionHisto
             </div>
           ))
         ) : (
-          <p className="text-sm text-muted-foreground">No improved versions yet.</p>
+          <p className="text-sm text-muted-foreground">No other versions yet.</p>
         )}
       </div>
     </section>

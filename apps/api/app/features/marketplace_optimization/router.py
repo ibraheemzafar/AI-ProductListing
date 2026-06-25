@@ -9,6 +9,7 @@ from app.features.marketplace_optimization.dependencies import (
     get_marketplace_optimization_service,
 )
 from app.features.marketplace_optimization.schemas import (
+    MarketplaceOptimizationListResponse,
     MarketplaceOptimizationRequest,
     MarketplaceOptimizationResponse,
 )
@@ -35,4 +36,23 @@ async def optimize_listing_for_marketplace(
         user_id=current_user.id,
         listing_id=listing_id,
         marketplace=payload.marketplace,
+        force=payload.force,
+    )
+
+
+@router.get(
+    "/listings/{listing_id}/marketplace-optimizations",
+    response_model=MarketplaceOptimizationListResponse,
+)
+async def list_listing_marketplace_optimizations(
+    listing_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    optimization_service: Annotated[
+        MarketplaceOptimizationService,
+        Depends(get_marketplace_optimization_service),
+    ],
+) -> MarketplaceOptimizationListResponse:
+    return await optimization_service.list_optimizations(
+        user_id=current_user.id,
+        listing_id=listing_id,
     )

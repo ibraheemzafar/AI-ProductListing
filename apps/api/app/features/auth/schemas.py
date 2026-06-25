@@ -1,14 +1,28 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.features.auth.models import User
+
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 128
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     name: str | None = None
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+    confirm_password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+
+    @model_validator(mode="after")
+    def validate_passwords(self) -> "RegisterRequest":
+        if not any(char.isalpha() for char in self.password) or not any(
+            char.isdigit() for char in self.password
+        ):
+            raise ValueError("Password must contain at least one letter and one number")
+        if self.password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self
 
 
 class LoginRequest(BaseModel):
@@ -36,11 +50,13 @@ class AuthenticatedUserResponse(BaseModel):
 
 class SessionResponse(BaseModel):
     user: AuthenticatedUserResponse
+    granted_bonus_credits: int | None = None
 
 
 class AuthSession(BaseModel):
     user: User
     access_token: str
     expires_at: datetime
+    granted_bonus_credits: int | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

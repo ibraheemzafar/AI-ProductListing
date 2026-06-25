@@ -45,7 +45,10 @@ async def register(
         name=request.name,
     )
     set_session_cookie(response, settings, session.access_token)
-    return SessionResponse(user=AuthenticatedUserResponse.from_user(session.user))
+    return SessionResponse(
+        user=AuthenticatedUserResponse.from_user(session.user),
+        granted_bonus_credits=session.granted_bonus_credits,
+    )
 
 
 @router.post("/login", response_model=SessionResponse, status_code=status.HTTP_200_OK)

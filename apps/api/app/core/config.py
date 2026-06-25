@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     aws_region: str = ""
     aws_s3_bucket: str = ""
     session_cookie_samesite: Literal["lax", "strict", "none"] = Field(default="lax")
+    # Billing / wallet
+    signup_bonus_enabled: bool = False
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    billing_success_url: str = "http://localhost:3000/dashboard/billing?status=success"
+    billing_cancel_url: str = "http://localhost:3000/dashboard/billing?status=cancelled"
+    billing_portal_return_url: str = "http://localhost:3000/dashboard/billing"
 
     model_config = SettingsConfigDict(
         env_file=".env",

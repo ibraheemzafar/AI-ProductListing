@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.features.ai_analysis.models import AiRequestLog
@@ -19,6 +19,19 @@ class MarketplaceOptimizationRepository(Protocol):
         listing_id: str,
         user_id: str,
     ) -> GeneratedListing | None:
+        pass
+
+    async def get_optimization(
+        self,
+        listing_id: str,
+        marketplace: Marketplace,
+    ) -> MarketplaceOptimization | None:
+        pass
+
+    async def list_optimizations(
+        self,
+        listing_id: str,
+    ) -> list[MarketplaceOptimization]:
         pass
 
     async def save_optimization(
@@ -48,6 +61,33 @@ class SQLAlchemyMarketplaceOptimizationRepository:
             .where(GeneratedListing.id == listing_id, Product.user_id == user_id),
         )
         return result.scalar_one_or_none()
+
+    async def get_optimization(
+        self,
+        listing_id: str,
+        marketplace: Marketplace,
+    ) -> MarketplaceOptimization | None:
+        result = await self._database_session.execute(
+            select(MarketplaceOptimization)
+            .where(
+                MarketplaceOptimization.listing_id == listing_id,
+                MarketplaceOptimization.marketplace == marketplace,
+            )
+            .order_by(desc(MarketplaceOptimization.created_at))
+            .limit(1),
+        )
+        return result.scalar_one_or_none()
+
+    async def list_optimizations(
+        self,
+        listing_id: str,
+    ) -> list[MarketplaceOptimization]:
+        result = await self._database_session.execute(
+            select(MarketplaceOptimization)
+            .where(MarketplaceOptimization.listing_id == listing_id)
+            .order_by(desc(MarketplaceOptimization.created_at)),
+        )
+        return list(result.scalars().all())
 
     async def save_optimization(
         self,

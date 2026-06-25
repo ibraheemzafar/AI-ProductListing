@@ -66,6 +66,22 @@ export async function improveListing(listingId: string): Promise<ListingImprovem
   return mapImprovement((await response.json()) as ApiListingImprovement);
 }
 
+export async function regenerateListing(listingId: string): Promise<ListingVersion> {
+  const response = await fetch(
+    `${getPublicEnv().apiBaseUrl}/products/listings/${listingId}/regenerate`,
+    {
+      method: 'POST',
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+
+  return mapVersion((await response.json()) as ApiListingVersion);
+}
+
 export async function getListingVersions(listingId: string): Promise<ListingVersionHistory> {
   const response = await fetch(
     `${getPublicEnv().apiBaseUrl}/products/listings/${listingId}/versions`,

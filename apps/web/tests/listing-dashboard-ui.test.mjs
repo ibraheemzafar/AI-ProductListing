@@ -34,12 +34,13 @@ test('listing detail view includes generated listing fields and copy actions', (
 
   assert.match(source, /Product analysis/);
   assert.match(source, /Copy All/);
-  assert.match(source, /Download JSON/);
-  assert.match(source, /Download Shopify CSV/);
+  assert.match(source, /JSON/);
+  assert.match(source, /Shopify CSV/);
   assert.match(source, /Analyze SEO/);
   assert.match(source, /Improve with AI/);
-  assert.match(source, /Optimize for Marketplace/);
-  assert.match(source, /Enhance Image/);
+  assert.match(source, /Regenerate/);
+  assert.match(source, /Optimize/);
+  assert.match(source, /Image studio/);
   assert.match(source, /Background removal/);
   assert.match(source, /Image cleanup/);
   assert.match(source, /Image optimization/);
@@ -71,15 +72,17 @@ test('listing detail view includes generated listing fields and copy actions', (
   assert.match(source, /analyzeListingSeo/);
   assert.match(source, /improveListing/);
   assert.match(source, /optimizeListingForMarketplace/);
+  assert.match(source, /getMarketplaceOptimizations/);
   assert.match(source, /enhanceListingImage/);
   assert.match(source, /acceptListingVersion/);
   assert.match(source, /getListingVersions/);
+  assert.match(source, /regenerateListing/);
   assert.match(source, /JSON export downloaded/);
   assert.match(source, /Shopify CSV downloaded/);
   assert.match(source, /SEO analysis completed/);
   assert.match(source, /Improved version created/);
   assert.match(source, /Improved version accepted/);
-  assert.match(source, /Marketplace optimization completed/);
+  assert.match(source, /Marketplace optimization ready/);
   assert.match(source, /Image enhancement completed/);
   assert.match(source, /Copy failed/);
 });

@@ -38,6 +38,22 @@ export async function generateListing(analysisId: string): Promise<GeneratedList
   return mapGeneratedListing((await response.json()) as ApiGeneratedListing);
 }
 
+export async function getListingVersions(
+  analysisId: string,
+): Promise<GeneratedListingResult[]> {
+  const response = await fetch(`${getPublicEnv().apiBaseUrl}/products/analysis/${analysisId}/listings`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = (await response.json()) as ApiGeneratedListing[] | null;
+  return (payload ?? []).map(mapGeneratedListing);
+}
+
 async function readErrorMessage(response: Response): Promise<string> {
   try {
     const payload = (await response.json()) as ApiErrorPayload;

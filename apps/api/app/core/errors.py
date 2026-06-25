@@ -44,3 +44,21 @@ class ConfigurationError(AppError):
     status_code = 500
     code = "configuration_error"
     message = "Service configuration is invalid"
+
+
+class InsufficientCreditsError(AppError):
+    status_code = 402
+    code = "insufficient_credits"
+    message = "You do not have enough credits. Please top up or upgrade your plan"
+
+
+class WebhookVerificationError(AppError):
+    status_code = 400
+    code = "webhook_verification_failed"
+    message = "Could not verify the incoming webhook signature"
+
+
+class PaymentProviderError(AppError):
+    status_code = 502
+    code = "payment_provider_error"
+    message = "The payment provider could not process this request"

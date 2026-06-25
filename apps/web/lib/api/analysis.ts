@@ -38,6 +38,22 @@ export async function analyzeProductImage(imageId: string): Promise<ProductAnaly
   return mapAnalysis((await response.json()) as ApiProductAnalysis);
 }
 
+export async function getAnalysisVersions(
+  imageId: string,
+): Promise<ProductAnalysisResult[]> {
+  const response = await fetch(`${getPublicEnv().apiBaseUrl}/products/images/${imageId}/analyses`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = (await response.json()) as ApiProductAnalysis[] | null;
+  return (payload ?? []).map(mapAnalysis);
+}
+
 async function readErrorMessage(response: Response): Promise<string> {
   try {
     const payload = (await response.json()) as ApiErrorPayload;

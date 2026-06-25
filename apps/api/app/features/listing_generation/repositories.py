@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.features.ai_analysis.models import AiRequestLog, ProductAnalysisResult
 from app.features.listing_generation.models import GeneratedListing
 from app.features.listing_generation.schemas import ListingContent
+from app.features.listing_improvement.models import ListingVersion
 from app.features.product_uploads.models import Product, ProductImage
 
 ListingHistoryRow = tuple[GeneratedListing, ProductImage]
 ListingDetailRow = tuple[GeneratedListing, ProductAnalysisResult, ProductImage]
+ListingWithAnalysisRow = tuple[GeneratedListing, ProductAnalysisResult]
 
 
 class ListingGenerationRepository(Protocol):
@@ -18,6 +20,13 @@ class ListingGenerationRepository(Protocol):
         analysis_id: str,
         user_id: str,
     ) -> ProductAnalysisResult | None:
+        pass
+
+    async def list_listings_for_analysis(
+        self,
+        analysis_id: str,
+        user_id: str,
+    ) -> list[GeneratedListing]:
         pass
 
     async def save_generated_listing(
@@ -45,6 +54,21 @@ class ListingGenerationRepository(Protocol):
     ) -> ListingDetailRow | None:
         pass
 
+    async def get_listing_with_analysis_for_user(
+        self,
+        listing_id: str,
+        user_id: str,
+    ) -> ListingWithAnalysisRow | None:
+        pass
+
+    async def create_listing_version(
+        self,
+        listing: GeneratedListing,
+        content: ListingContent,
+        source: str,
+    ) -> ListingVersion:
+        pass
+
 
 class SQLAlchemyListingGenerationRepository:
     def __init__(self, database_session: AsyncSession) -> None:
@@ -61,6 +85,19 @@ class SQLAlchemyListingGenerationRepository:
             .where(ProductAnalysisResult.id == analysis_id, Product.user_id == user_id),
         )
         return result.scalar_one_or_none()
+
+    async def list_listings_for_analysis(
+        self,
+        analysis_id: str,
+        user_id: str,
+    ) -> list[GeneratedListing]:
+        result = await self._database_session.execute(
+            select(GeneratedListing)
+            .join(Product, Product.id == GeneratedListing.product_id)
+            .where(GeneratedListing.analysis_id == analysis_id, Product.user_id == user_id)
+            .order_by(desc(GeneratedListing.created_at)),
+        )
+        return list(result.scalars().all())
 
     async def save_generated_listing(
         self,
@@ -98,19 +135,30 @@ class SQLAlchemyListingGenerationRepository:
         offset: int,
     ) -> tuple[list[ListingHistoryRow], int]:
         base_filters = (Product.user_id == user_id,)
+        # The list shows one card per product, so count distinct products (not rows) and
+        # keep only the latest listing per product.
         total_result = await self._database_session.execute(
-            select(func.count(GeneratedListing.id))
+            select(func.count(func.distinct(GeneratedListing.product_id)))
             .join(Product, Product.id == GeneratedListing.product_id)
             .where(*base_filters),
         )
         total = total_result.scalar_one()
+
+        latest_listing_ids = (
+            select(GeneratedListing.id)
+            .join(Product, Product.id == GeneratedListing.product_id)
+            .where(*base_filters)
+            .distinct(GeneratedListing.product_id)
+            .order_by(GeneratedListing.product_id, desc(GeneratedListing.created_at))
+            .subquery()
+        )
 
         result = await self._database_session.execute(
             select(GeneratedListing, ProductImage)
             .join(Product, Product.id == GeneratedListing.product_id)
             .join(ProductAnalysisResult, ProductAnalysisResult.id == GeneratedListing.analysis_id)
             .join(ProductImage, ProductImage.id == ProductAnalysisResult.image_id)
-            .where(*base_filters)
+            .where(GeneratedListing.id.in_(select(latest_listing_ids.c.id)))
             .order_by(desc(GeneratedListing.created_at))
             .limit(limit)
             .offset(offset),
@@ -134,3 +182,49 @@ class SQLAlchemyListingGenerationRepository:
         if row is None:
             return None
         return row[0], row[1], row[2]
+
+    async def get_listing_with_analysis_for_user(
+        self,
+        listing_id: str,
+        user_id: str,
+    ) -> ListingWithAnalysisRow | None:
+        result = await self._database_session.execute(
+            select(GeneratedListing, ProductAnalysisResult)
+            .join(Product, Product.id == GeneratedListing.product_id)
+            .join(ProductAnalysisResult, ProductAnalysisResult.id == GeneratedListing.analysis_id)
+            .where(GeneratedListing.id == listing_id, Product.user_id == user_id),
+        )
+        row = result.one_or_none()
+        if row is None:
+            return None
+        return row[0], row[1]
+
+    async def create_listing_version(
+        self,
+        listing: GeneratedListing,
+        content: ListingContent,
+        source: str,
+    ) -> ListingVersion:
+        version_number_result = await self._database_session.execute(
+            select(func.coalesce(func.max(ListingVersion.version_number), 0)).where(
+                ListingVersion.listing_id == listing.id,
+            ),
+        )
+        version_number = int(version_number_result.scalar_one()) + 1
+        version = ListingVersion(
+            listing_id=listing.id,
+            product_id=listing.product_id,
+            version_number=version_number,
+            title=content.title,
+            short_description=content.short_description,
+            long_description=content.long_description,
+            seo_keywords=content.seo_keywords,
+            product_tags=content.product_tags,
+            source=source,
+            is_accepted=False,
+            raw_output=content.model_dump(),
+        )
+        self._database_session.add(version)
+        await self._database_session.commit()
+        await self._database_session.refresh(version)
+        return version

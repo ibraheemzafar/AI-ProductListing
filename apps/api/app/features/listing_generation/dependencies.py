@@ -4,6 +4,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.features.billing_meter.dependencies import get_token_billing_meter
+from app.features.billing_meter.service import BillingMeter
 from app.features.listing_generation.openai_client import OpenAIListingGenerationClient
 from app.features.listing_generation.prompts import ListingPromptBuilder
 from app.features.listing_generation.repositories import SQLAlchemyListingGenerationRepository
@@ -14,6 +16,7 @@ from app.infrastructure.database import get_database_session
 def get_listing_generation_service(
     database_session: Annotated[AsyncSession, Depends(get_database_session)],
     settings: Annotated[Settings, Depends(get_settings)],
+    billing_meter: Annotated[BillingMeter, Depends(get_token_billing_meter)],
 ) -> ListingGenerationService:
     return ListingGenerationService(
         repository=SQLAlchemyListingGenerationRepository(database_session),
@@ -24,4 +27,5 @@ def get_listing_generation_service(
         ),
         prompt_builder=ListingPromptBuilder(),
         retry_attempts=settings.ai_retry_attempts,
+        billing_meter=billing_meter,
     )

@@ -12,6 +12,7 @@ from app.features.listing_generation.schemas import (
     ListingHistoryResponse,
 )
 from app.features.listing_generation.services import ListingGenerationService
+from app.features.listing_improvement.schemas import ListingVersionResponse
 
 router = APIRouter(prefix="/products", tags=["listing-generation"])
 
@@ -27,6 +28,37 @@ async def generate_listing(
     _: Annotated[None, Depends(enforce_ai_rate_limit)],
 ) -> GeneratedListingResponse:
     return await listing_service.generate_listing(
+        user_id=current_user.id,
+        analysis_id=analysis_id,
+    )
+
+
+@router.post("/listings/{listing_id}/regenerate", response_model=ListingVersionResponse)
+async def regenerate_listing(
+    listing_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    listing_service: Annotated[
+        ListingGenerationService,
+        Depends(get_listing_generation_service),
+    ],
+    _: Annotated[None, Depends(enforce_ai_rate_limit)],
+) -> ListingVersionResponse:
+    return await listing_service.regenerate_listing(
+        user_id=current_user.id,
+        listing_id=listing_id,
+    )
+
+
+@router.get("/analysis/{analysis_id}/listings", response_model=list[GeneratedListingResponse])
+async def list_listings_for_analysis(
+    analysis_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    listing_service: Annotated[
+        ListingGenerationService,
+        Depends(get_listing_generation_service),
+    ],
+) -> list[GeneratedListingResponse]:
+    return await listing_service.list_existing_listings(
         user_id=current_user.id,
         analysis_id=analysis_id,
     )

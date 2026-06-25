@@ -4,6 +4,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.features.billing_meter.dependencies import get_flat_billing_meter
+from app.features.billing_meter.service import BillingMeter
 from app.features.lifestyle_generation.openai_provider import OpenAIImageGenerationProvider
 from app.features.lifestyle_generation.prompts import LifestyleScenePromptBuilder
 from app.features.lifestyle_generation.repositories import SQLAlchemyLifestyleGenerationRepository
@@ -17,6 +19,7 @@ def get_lifestyle_generation_service(
     database_session: Annotated[AsyncSession, Depends(get_database_session)],
     storage_provider: Annotated[StorageProvider, Depends(get_storage_provider)],
     settings: Annotated[Settings, Depends(get_settings)],
+    billing_meter: Annotated[BillingMeter, Depends(get_flat_billing_meter)],
 ) -> LifestyleGenerationService:
     return LifestyleGenerationService(
         repository=SQLAlchemyLifestyleGenerationRepository(database_session),
@@ -28,4 +31,5 @@ def get_lifestyle_generation_service(
         storage_provider=storage_provider,
         prompt_builder=LifestyleScenePromptBuilder(),
         retry_attempts=settings.ai_retry_attempts,
+        billing_meter=billing_meter,
     )

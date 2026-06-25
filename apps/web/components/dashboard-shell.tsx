@@ -1,8 +1,17 @@
-import { BarChart3, ImagePlus, LayoutDashboard, Sparkles, WandSparkles } from 'lucide-react';
+import {
+  BarChart3,
+  CreditCard,
+  ImagePlus,
+  LayoutDashboard,
+  Sparkles,
+  WandSparkles,
+} from 'lucide-react';
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/app/dashboard/logout-button';
+import { WalletBalance } from '@/components/wallet-balance';
+import { WelcomeCreditsToast } from '@/components/welcome-credits-toast';
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -16,6 +25,7 @@ interface DashboardShellProps {
 const navigationItems = [
   { href: '/dashboard', label: 'Listings', icon: LayoutDashboard },
   { href: '/dashboard/upload', label: 'Upload', icon: ImagePlus },
+  { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
 ];
 
 export function DashboardShell({
@@ -28,6 +38,9 @@ export function DashboardShell({
 }: DashboardShellProps) {
   return (
     <div className="app-shell min-h-screen lg:grid lg:grid-cols-[272px_minmax(0,1fr)]">
+      <Suspense fallback={null}>
+        <WelcomeCreditsToast />
+      </Suspense>
       <aside className="hidden border-r border-white/10 bg-background/55 px-4 py-5 backdrop-blur-xl lg:block">
         <Link className="flex items-center gap-3 rounded-md px-3 py-2" href="/">
           <span className="flex size-10 items-center justify-center rounded-md bg-primary text-white">
@@ -75,6 +88,7 @@ export function DashboardShell({
               {email ? email : 'AI product listing workspace'}
             </div>
             <div className="flex items-center gap-2">
+              <WalletBalance />
               <Link
                 className="hidden h-10 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-foreground transition hover:bg-white/10 sm:inline-flex"
                 href="/dashboard/upload"

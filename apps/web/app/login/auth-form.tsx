@@ -14,6 +14,19 @@ interface ApiValidationError {
   }>;
 }
 
+function validateRegistrationPassword(password: string, confirmPassword: string): string | null {
+  if (password.length < 8) {
+    return 'Password must be at least 8 characters.';
+  }
+  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    return 'Password must contain at least one letter and one number.';
+  }
+  if (password !== confirmPassword) {
+    return 'Passwords do not match.';
+  }
+  return null;
+}
+
 export function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -29,12 +42,16 @@ export function AuthForm() {
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get('email') ?? '').trim();
     const password = String(formData.get('password') ?? '');
+    const confirmPassword = String(formData.get('confirm_password') ?? '');
     const name = String(formData.get('name') ?? '').trim();
 
-    if (mode === 'register' && password.length < 8) {
-      setIsSubmitting(false);
-      setErrorMessage('Password must be at least 8 characters.');
-      return;
+    if (mode === 'register') {
+      const passwordError = validateRegistrationPassword(password, confirmPassword);
+      if (passwordError) {
+        setIsSubmitting(false);
+        setErrorMessage(passwordError);
+        return;
+      }
     }
 
     const response = await fetch(`${getPublicEnv().apiBaseUrl}/auth/${mode}`, {
@@ -46,7 +63,9 @@ export function AuthForm() {
       body: JSON.stringify({
         email,
         password,
-        ...(mode === 'register' ? { name: name || null } : {}),
+        ...(mode === 'register'
+          ? { name: name || null, confirm_password: confirmPassword }
+          : {}),
       }),
     });
 
@@ -68,7 +87,22 @@ export function AuthForm() {
       return;
     }
 
-    router.replace(searchParams.get('next') || '/dashboard');
+    const destination = searchParams.get('next') || '/dashboard';
+    if (mode === 'register') {
+      const data = (await response.json().catch(() => null)) as {
+        granted_bonus_credits?: number | null;
+      } | null;
+      const bonus = data?.granted_bonus_credits;
+      if (bonus) {
+        const url = new URL(destination, window.location.origin);
+        url.searchParams.set('welcome_credits', String(bonus));
+        router.replace(url.pathname + url.search);
+        router.refresh();
+        return;
+      }
+    }
+
+    router.replace(destination);
     router.refresh();
   }
 
@@ -133,6 +167,20 @@ export function AuthForm() {
           type="password"
         />
       </label>
+
+      {mode === 'register' ? (
+        <label className="flex flex-col gap-2 text-sm font-medium text-white">
+          Confirm password
+          <input
+            className="field-surface h-11 font-normal"
+            minLength={8}
+            name="confirm_password"
+            placeholder="Re-enter your password"
+            required
+            type="password"
+          />
+        </label>
+      ) : null}
 
       {errorMessage ? (
         <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">

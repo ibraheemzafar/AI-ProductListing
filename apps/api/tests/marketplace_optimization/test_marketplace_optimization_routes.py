@@ -21,7 +21,9 @@ class FakeMarketplaceOptimizationService:
         user_id: str,
         listing_id: str,
         marketplace: str,
+        force: bool = False,
     ) -> MarketplaceOptimizationResponse:
+        del force
         assert user_id == "user-1"
         return MarketplaceOptimizationResponse.from_model(
             MarketplaceOptimization(

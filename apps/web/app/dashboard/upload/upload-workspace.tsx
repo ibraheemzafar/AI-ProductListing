@@ -1,8 +1,9 @@
 'use client';
 
-import { Clipboard, Sparkles, WandSparkles } from 'lucide-react';
+import { ArrowRight, Check, Sparkles, WandSparkles } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type {
   GeneratedListingResult,
@@ -10,86 +11,101 @@ import type {
   UploadedProductImage,
 } from '@ai-product-listing/types';
 import { Button } from '@/components/ui/button';
-import { analyzeProductImage } from '@/lib/api/analysis';
-import { generateListing } from '@/lib/api/listings';
+import { cn } from '@/lib/utils';
+import { analyzeProductImage, getAnalysisVersions } from '@/lib/api/analysis';
+import { notifyWalletChanged } from '@/lib/api/billing';
+import { generateListing, getListingVersions } from '@/lib/api/listings';
 import { UploadForm } from './upload-form';
 
 interface UploadWorkspaceProps {
   initialImages: UploadedProductImage[];
 }
 
+// The upload page is a linear wizard: Analyze -> Generate -> open the listing detail page,
+// where all editing, versioning, SEO, and image work lives. No inline versioning here.
 export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
   const router = useRouter();
-  const [analysisByImageId, setAnalysisByImageId] = useState<Record<string, ProductAnalysisResult>>(
-    {},
-  );
-  const [listingByAnalysisId, setListingByAnalysisId] = useState<
+  const [analysisByImageId, setAnalysisByImageId] = useState<
+    Record<string, ProductAnalysisResult>
+  >({});
+  const [listingByImageId, setListingByImageId] = useState<
     Record<string, GeneratedListingResult>
   >({});
-  const [loadingImageId, setLoadingImageId] = useState<string | null>(null);
-  const [loadingAnalysisId, setLoadingAnalysisId] = useState<string | null>(null);
+  const [analyzingImageId, setAnalyzingImageId] = useState<string | null>(null);
+  const [generatingImageId, setGeneratingImageId] = useState<string | null>(null);
   const [errorByImageId, setErrorByImageId] = useState<Record<string, string>>({});
-  const [errorByAnalysisId, setErrorByAnalysisId] = useState<Record<string, string>>({});
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Surface any previously generated analysis/listing without spending tokens, so the wizard
+  // resumes at the right step (and links straight to an existing listing).
+  useEffect(() => {
+    let cancelled = false;
+
+    async function preloadExistingResults() {
+      for (const image of initialImages) {
+        const [analysis] = await getAnalysisVersions(image.id);
+        if (cancelled || !analysis) {
+          continue;
+        }
+        setAnalysisByImageId((current) => ({ ...current, [image.id]: analysis }));
+
+        const [listing] = await getListingVersions(analysis.id);
+        if (cancelled || !listing) {
+          continue;
+        }
+        setListingByImageId((current) => ({ ...current, [image.id]: listing }));
+      }
+    }
+
+    void preloadExistingResults();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initialImages]);
+
   async function handleAnalyzeImage(imageId: string) {
-    setLoadingImageId(imageId);
+    setAnalyzingImageId(imageId);
+    clearError(imageId);
+    try {
+      const analysis = await analyzeProductImage(imageId);
+      setAnalysisByImageId((current) => ({ ...current, [imageId]: analysis }));
+      notifyWalletChanged();
+      showToast('Product analysis completed.');
+    } catch (error) {
+      handleError(imageId, error, 'Product analysis failed.');
+    } finally {
+      setAnalyzingImageId(null);
+    }
+  }
+
+  async function handleGenerateListing(imageId: string, analysisId: string) {
+    setGeneratingImageId(imageId);
+    clearError(imageId);
+    try {
+      const listing = await generateListing(analysisId);
+      setListingByImageId((current) => ({ ...current, [imageId]: listing }));
+      notifyWalletChanged();
+      showToast('Listing generated.');
+    } catch (error) {
+      handleError(imageId, error, 'Listing generation failed.');
+    } finally {
+      setGeneratingImageId(null);
+    }
+  }
+
+  function clearError(imageId: string) {
     setErrorByImageId((current) => {
       const next = { ...current };
       delete next[imageId];
       return next;
     });
-
-    try {
-      const analysis = await analyzeProductImage(imageId);
-      setAnalysisByImageId((current) => ({ ...current, [imageId]: analysis }));
-      showToast('Product analysis completed.');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Product analysis failed.';
-      setErrorByImageId((current) => ({
-        ...current,
-        [imageId]: message,
-      }));
-      showToast(message);
-    } finally {
-      setLoadingImageId(null);
-    }
   }
 
-  async function handleGenerateListing(analysisId: string) {
-    setLoadingAnalysisId(analysisId);
-    setErrorByAnalysisId((current) => {
-      const next = { ...current };
-      delete next[analysisId];
-      return next;
-    });
-
-    try {
-      const listing = await generateListing(analysisId);
-      setListingByAnalysisId((current) => ({ ...current, [analysisId]: listing }));
-      showToast('Listing generated.');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Listing generation failed.';
-      setErrorByAnalysisId((current) => ({
-        ...current,
-        [analysisId]: message,
-      }));
-      showToast(message);
-    } finally {
-      setLoadingAnalysisId(null);
-    }
-  }
-
-  async function copyText(key: string, value: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopiedKey(key);
-      showToast('Copied to clipboard.');
-      window.setTimeout(() => setCopiedKey(null), 1500);
-    } catch {
-      showToast('Copy failed. Please try again.');
-    }
+  function handleError(imageId: string, error: unknown, fallback: string) {
+    const message = error instanceof Error ? error.message : fallback;
+    setErrorByImageId((current) => ({ ...current, [imageId]: message }));
+    showToast(message);
   }
 
   function showToast(message: string) {
@@ -98,7 +114,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
+    <div className="flex flex-col gap-8">
       {toastMessage ? (
         <div
           className="glass-panel fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 text-sm text-white"
@@ -120,18 +136,22 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
 
       <section className="glass-panel p-5">
         <h2 className="text-lg font-semibold text-white">Uploaded images</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Analyze each product, generate its listing, then open the listing to refine it.
+        </p>
         <div className="mt-5 grid gap-3">
           {initialImages.length > 0 ? (
             initialImages.map((image) => {
               const analysis = analysisByImageId[image.id];
-              const listing = analysis ? listingByAnalysisId[analysis.id] : undefined;
+              const listing = listingByImageId[image.id];
+              const step = listing ? 3 : analysis ? 2 : 1;
 
               return (
                 <div
                   key={image.id}
-                  className="rounded-lg border border-white/10 bg-secondary/60 p-3 transition hover:border-primary/35"
+                  className="rounded-lg border border-white/10 bg-secondary/60 p-4 transition hover:border-primary/35"
                 >
-                  <div className="flex gap-3">
+                  <div className="flex gap-4">
                     <img
                       alt={image.originalFilename}
                       className="size-20 rounded-md object-cover"
@@ -144,15 +164,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
                       <p className="text-xs text-muted-foreground">
                         {(image.sizeBytes / 1024 / 1024).toFixed(2)} MB
                       </p>
-                      <Button
-                        className="mt-3 h-9 px-3"
-                        type="button"
-                        onClick={() => handleAnalyzeImage(image.id)}
-                        disabled={loadingImageId === image.id}
-                      >
-                        <Sparkles className="mr-2 size-4" aria-hidden="true" />
-                        {loadingImageId === image.id ? 'Analyzing' : 'Analyze Product'}
-                      </Button>
+                      <WizardSteps current={step} />
                     </div>
                   </div>
 
@@ -163,33 +175,48 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
                   ) : null}
 
                   {analysis ? (
-                    <div className="mt-4 border-t border-white/10 pt-3">
+                    <div className="mt-4 border-t border-white/10 pt-4">
                       <AnalysisAttributes analysis={analysis} />
-                      <Button
-                        className="mt-4 h-9 px-3"
-                        type="button"
-                        onClick={() => handleGenerateListing(analysis.id)}
-                        disabled={loadingAnalysisId === analysis.id}
-                      >
-                        <WandSparkles className="mr-2 size-4" aria-hidden="true" />
-                        {loadingAnalysisId === analysis.id ? 'Generating' : 'Generate Listing'}
-                      </Button>
-
-                      {errorByAnalysisId[analysis.id] ? (
-                        <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
-                          {errorByAnalysisId[analysis.id]}
-                        </p>
-                      ) : null}
-
-                      {listing ? (
-                        <GeneratedListingPanel
-                          listing={listing}
-                          copiedKey={copiedKey}
-                          onCopy={copyText}
-                        />
-                      ) : null}
                     </div>
                   ) : null}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {!analysis ? (
+                      <Button
+                        type="button"
+                        onClick={() => handleAnalyzeImage(image.id)}
+                        disabled={analyzingImageId === image.id}
+                      >
+                        <Sparkles className="mr-2 size-4" aria-hidden="true" />
+                        {analyzingImageId === image.id ? 'Analyzing' : 'Analyze product'}
+                      </Button>
+                    ) : null}
+
+                    {analysis && !listing ? (
+                      <Button
+                        type="button"
+                        onClick={() => handleGenerateListing(image.id, analysis.id)}
+                        disabled={generatingImageId === image.id}
+                      >
+                        <WandSparkles className="mr-2 size-4" aria-hidden="true" />
+                        {generatingImageId === image.id ? 'Generating' : 'Generate listing'}
+                      </Button>
+                    ) : null}
+
+                    {listing ? (
+                      <>
+                        <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                          {listing.listing.title}
+                        </p>
+                        <Button asChild>
+                          <Link href={`/dashboard/listings/${listing.id}`}>
+                            View listing
+                            <ArrowRight className="ml-2 size-4" aria-hidden="true" />
+                          </Link>
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               );
             })
@@ -207,6 +234,44 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
   );
 }
 
+const WIZARD_STEPS = ['Analyze', 'Generate', 'Open listing'];
+
+function WizardSteps({ current }: { current: number }) {
+  return (
+    <ol className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+      {WIZARD_STEPS.map((label, index) => {
+        const stepNumber = index + 1;
+        const isComplete = current > stepNumber;
+        const isActive = current === stepNumber;
+        return (
+          <li key={label} className="flex items-center gap-2">
+            <span
+              className={cn(
+                'flex size-5 items-center justify-center rounded-full border text-[11px] font-semibold',
+                isComplete
+                  ? 'border-primary/60 bg-primary/20 text-white'
+                  : isActive
+                    ? 'border-primary/60 text-white'
+                    : 'border-white/15 text-muted-foreground',
+              )}
+            >
+              {isComplete ? <Check className="size-3" aria-hidden="true" /> : stepNumber}
+            </span>
+            <span className={isActive || isComplete ? 'text-white' : 'text-muted-foreground'}>
+              {label}
+            </span>
+            {stepNumber < WIZARD_STEPS.length ? (
+              <span className="text-white/20" aria-hidden="true">
+                /
+              </span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function AnalysisAttributes({ analysis }: { analysis: ProductAnalysisResult }) {
   const attributes = [
     ['Category', analysis.attributes.category],
@@ -219,94 +284,13 @@ function AnalysisAttributes({ analysis }: { analysis: ProductAnalysisResult }) {
   ];
 
   return (
-    <dl className="grid gap-2 text-sm">
+    <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
       {attributes.map(([label, value]) => (
-        <div key={label} className="grid grid-cols-[120px_minmax(0,1fr)] gap-3">
-          <dt className="text-muted-foreground">{label}</dt>
-          <dd className="min-w-0 break-words font-medium text-white">{value}</dd>
+        <div key={label} className="rounded-md border border-white/10 bg-background/45 px-3 py-2">
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+          <dd className="mt-1 min-w-0 break-words font-medium text-white">{value}</dd>
         </div>
       ))}
     </dl>
-  );
-}
-
-interface GeneratedListingPanelProps {
-  listing: GeneratedListingResult;
-  copiedKey: string | null;
-  onCopy: (key: string, value: string) => Promise<void>;
-}
-
-function GeneratedListingPanel({ listing, copiedKey, onCopy }: GeneratedListingPanelProps) {
-  const keywordText = listing.listing.seoKeywords.join(', ');
-  const tagText = listing.listing.productTags.join(', ');
-
-  return (
-    <div className="mt-4 grid gap-4 border-t border-white/10 pt-4 text-sm">
-      <ListingField
-        label="Title"
-        value={listing.listing.title}
-        copyKey={`${listing.id}:title`}
-        copiedKey={copiedKey}
-        onCopy={onCopy}
-      />
-      <ListingField
-        label="Short description"
-        value={listing.listing.shortDescription}
-        copyKey={`${listing.id}:short`}
-        copiedKey={copiedKey}
-        onCopy={onCopy}
-      />
-      <ListingField
-        label="Long description"
-        value={listing.listing.longDescription}
-        copyKey={`${listing.id}:long`}
-        copiedKey={copiedKey}
-        onCopy={onCopy}
-      />
-      <ListingField
-        label="SEO keywords"
-        value={keywordText}
-        copyKey={`${listing.id}:keywords`}
-        copiedKey={copiedKey}
-        onCopy={onCopy}
-      />
-      <ListingField
-        label="Product tags"
-        value={tagText}
-        copyKey={`${listing.id}:tags`}
-        copiedKey={copiedKey}
-        onCopy={onCopy}
-      />
-    </div>
-  );
-}
-
-interface ListingFieldProps {
-  label: string;
-  value: string;
-  copyKey: string;
-  copiedKey: string | null;
-  onCopy: (key: string, value: string) => Promise<void>;
-}
-
-function ListingField({ label, value, copyKey, copiedKey, onCopy }: ListingFieldProps) {
-  return (
-    <section className="grid gap-2">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="font-medium">{label}</h3>
-        <Button
-          className="h-8 px-3"
-          type="button"
-          variant="secondary"
-          onClick={() => onCopy(copyKey, value)}
-        >
-          <Clipboard className="mr-2 size-4" aria-hidden="true" />
-          {copiedKey === copyKey ? 'Copied' : 'Copy'}
-        </Button>
-      </div>
-      <p className="break-words rounded-md border border-white/10 bg-background/45 p-3 text-muted-foreground">
-        {value}
-      </p>
-    </section>
   );
 }

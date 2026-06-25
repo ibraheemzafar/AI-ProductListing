@@ -4,6 +4,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.features.billing_meter.dependencies import get_flat_billing_meter
+from app.features.billing_meter.service import BillingMeter
 from app.features.image_enhancement.openai_provider import OpenAIImageEnhancementProvider
 from app.features.image_enhancement.repositories import SQLAlchemyImageEnhancementRepository
 from app.features.image_enhancement.services import ImageEnhancementService
@@ -16,6 +18,7 @@ def get_image_enhancement_service(
     database_session: Annotated[AsyncSession, Depends(get_database_session)],
     storage_provider: Annotated[StorageProvider, Depends(get_storage_provider)],
     settings: Annotated[Settings, Depends(get_settings)],
+    billing_meter: Annotated[BillingMeter, Depends(get_flat_billing_meter)],
 ) -> ImageEnhancementService:
     return ImageEnhancementService(
         repository=SQLAlchemyImageEnhancementRepository(database_session),
@@ -26,4 +29,5 @@ def get_image_enhancement_service(
         ),
         storage_provider=storage_provider,
         retry_attempts=settings.ai_retry_attempts,
+        billing_meter=billing_meter,
     )

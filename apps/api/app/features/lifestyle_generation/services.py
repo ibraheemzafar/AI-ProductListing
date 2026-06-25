@@ -5,6 +5,8 @@ from uuid import uuid4
 from app.core.errors import AppError, NotFoundError
 from app.features.ai_analysis.models import AiRequestLog
 from app.features.ai_analysis.openai_client import TokenUsage
+from app.features.billing_meter.pricing import UsageInput
+from app.features.billing_meter.service import RequestMeter
 from app.features.lifestyle_generation.models import GeneratedImage
 from app.features.lifestyle_generation.prompts import LifestyleScenePromptBuilder
 from app.features.lifestyle_generation.providers import (
@@ -32,12 +34,14 @@ class LifestyleGenerationService:
         storage_provider: StorageProvider,
         prompt_builder: LifestyleScenePromptBuilder,
         retry_attempts: int,
+        billing_meter: RequestMeter,
     ) -> None:
         self._repository = repository
         self._generation_provider = generation_provider
         self._storage_provider = storage_provider
         self._prompt_builder = prompt_builder
         self._retry_attempts = retry_attempts
+        self._billing_meter = billing_meter
 
     async def generate_lifestyle_scene(
         self,
@@ -55,6 +59,8 @@ class LifestyleGenerationService:
         )
         if source is None:
             raise NotFoundError("Generated listing image was not found")
+
+        await self._billing_meter.authorize(user_id)
 
         prompt = self._prompt_builder.build_prompt(
             category=category,
@@ -100,6 +106,13 @@ class LifestyleGenerationService:
                     status="success",
                 ),
             )
+            request_log_id = str(uuid4())
+            charge = await self._billing_meter.charge(
+                user_id=user_id,
+                workflow="lifestyle_scene_generation",
+                usage=UsageInput(),
+                request_log_id=request_log_id,
+            )
             await self._log_request(
                 user_id=user_id,
                 product_id=source.listing.product_id,
@@ -109,6 +122,9 @@ class LifestyleGenerationService:
                 latency_ms=generation_time_ms,
                 success=True,
                 error_message=None,
+                request_log_id=request_log_id,
+                credits_charged=charge.credits_charged,
+                wallet_transaction_id=charge.transaction_id,
             )
             return GeneratedImageResponse.from_model(saved_image)
         except Exception as error:
@@ -207,9 +223,13 @@ class LifestyleGenerationService:
         latency_ms: int,
         success: bool,
         error_message: str | None,
+        request_log_id: str | None = None,
+        credits_charged: int | None = None,
+        wallet_transaction_id: str | None = None,
     ) -> None:
         await self._repository.create_request_log(
             AiRequestLog(
+                id=request_log_id or str(uuid4()),
                 user_id=user_id,
                 product_id=product_id,
                 image_id=image_id,
@@ -226,6 +246,8 @@ class LifestyleGenerationService:
                 success=success,
                 status="success" if success else "failure",
                 error_message=error_message,
+                credits_charged=credits_charged,
+                wallet_transaction_id=wallet_transaction_id,
             ),
         )
 

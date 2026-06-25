@@ -10,6 +10,7 @@ Marketplace = Literal["shopify", "amazon", "etsy", "daraz"]
 
 class MarketplaceOptimizationRequest(BaseModel):
     marketplace: Marketplace
+    force: bool = False
 
 
 class MarketplaceOptimizationContent(BaseModel):
@@ -44,3 +45,7 @@ class MarketplaceOptimizationResponse(BaseModel):
             ),
             created_at=optimization.created_at,
         )
+
+
+class MarketplaceOptimizationListResponse(BaseModel):
+    optimizations: list[MarketplaceOptimizationResponse]

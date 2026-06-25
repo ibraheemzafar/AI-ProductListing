@@ -27,6 +27,7 @@ interface ApiErrorPayload {
 export async function optimizeListingForMarketplace(
   listingId: string,
   marketplace: Marketplace,
+  force = false,
 ): Promise<MarketplaceOptimizationResult> {
   const response = await fetch(
     `${getPublicEnv().apiBaseUrl}/products/listings/${listingId}/marketplace-optimizations`,
@@ -36,7 +37,7 @@ export async function optimizeListingForMarketplace(
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ marketplace }),
+      body: JSON.stringify({ marketplace, force }),
     },
   );
 
@@ -45,6 +46,24 @@ export async function optimizeListingForMarketplace(
   }
 
   return mapOptimization((await response.json()) as ApiMarketplaceOptimization);
+}
+
+export async function getMarketplaceOptimizations(
+  listingId: string,
+): Promise<MarketplaceOptimizationResult[]> {
+  const response = await fetch(
+    `${getPublicEnv().apiBaseUrl}/products/listings/${listingId}/marketplace-optimizations`,
+    {
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = (await response.json()) as { optimizations: ApiMarketplaceOptimization[] } | null;
+  return (payload?.optimizations ?? []).map(mapOptimization);
 }
 
 async function readErrorMessage(response: Response): Promise<string> {

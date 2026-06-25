@@ -9,11 +9,17 @@ from app.features.listing_exports.router import router as listing_exports_router
 from app.features.listing_generation.router import router as listing_generation_router
 from app.features.listing_improvement.router import router as listing_improvement_router
 from app.features.marketplace_optimization.router import router as marketplace_optimization_router
+from app.features.payments.router import router as payments_router
 from app.features.product_uploads.router import router as product_uploads_router
 from app.features.seo_evaluation.router import router as seo_evaluation_router
+from app.features.subscriptions.router import router as subscriptions_router
+from app.features.wallet.router import router as wallet_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth_router)
+api_router.include_router(wallet_router)
+api_router.include_router(subscriptions_router)
+api_router.include_router(payments_router)
 api_router.include_router(product_uploads_router)
 api_router.include_router(ai_analysis_router)
 api_router.include_router(listing_generation_router)

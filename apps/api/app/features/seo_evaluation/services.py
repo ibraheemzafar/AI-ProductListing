@@ -1,11 +1,14 @@
 import asyncio
 from time import perf_counter
+from uuid import uuid4
 
 from pydantic import ValidationError
 
 from app.core.errors import AppError, NotFoundError
 from app.features.ai_analysis.models import AiRequestLog
 from app.features.ai_analysis.openai_client import TokenUsage
+from app.features.billing_meter.pricing import UsageInput
+from app.features.billing_meter.service import RequestMeter
 from app.features.seo_evaluation.openai_client import (
     SeoEvaluationClient,
     SeoEvaluationResult,
@@ -22,11 +25,13 @@ class SeoEvaluationService:
         seo_client: SeoEvaluationClient,
         prompt_builder: SeoEvaluationPromptBuilder,
         retry_attempts: int,
+        billing_meter: RequestMeter,
     ) -> None:
         self._repository = repository
         self._seo_client = seo_client
         self._prompt_builder = prompt_builder
         self._retry_attempts = retry_attempts
+        self._billing_meter = billing_meter
 
     async def analyze_listing_seo(
         self,
@@ -43,6 +48,8 @@ class SeoEvaluationService:
         if listing is None:
             raise NotFoundError("Generated listing was not found")
 
+        await self._billing_meter.authorize(user_id)
+
         prompt = self._prompt_builder.build_prompt(listing)
         started_at = perf_counter()
         token_usage = TokenUsage(input_tokens=None, output_tokens=None, total_tokens=None)
@@ -53,6 +60,16 @@ class SeoEvaluationService:
                 listing=listing,
                 analysis=evaluation_result.analysis,
             )
+            request_log_id = str(uuid4())
+            charge = await self._billing_meter.charge(
+                user_id=user_id,
+                workflow="seo_evaluation",
+                usage=UsageInput(
+                    input_tokens=token_usage.input_tokens,
+                    output_tokens=token_usage.output_tokens,
+                ),
+                request_log_id=request_log_id,
+            )
             await self._log_request(
                 user_id=user_id,
                 product_id=listing.product_id,
@@ -61,6 +78,9 @@ class SeoEvaluationService:
                 latency_ms=self._elapsed_ms(started_at),
                 success=True,
                 error_message=None,
+                request_log_id=request_log_id,
+                credits_charged=charge.credits_charged,
+                wallet_transaction_id=charge.transaction_id,
             )
             return SeoAnalysisResponse.from_model(saved_analysis)
         except (ValidationError, ValueError) as error:
@@ -108,9 +128,13 @@ class SeoEvaluationService:
         latency_ms: int,
         success: bool,
         error_message: str | None,
+        request_log_id: str | None = None,
+        credits_charged: int | None = None,
+        wallet_transaction_id: str | None = None,
     ) -> None:
         await self._repository.create_request_log(
             AiRequestLog(
+                id=request_log_id or str(uuid4()),
                 user_id=user_id,
                 product_id=product_id,
                 image_id=None,
@@ -124,6 +148,8 @@ class SeoEvaluationService:
                 success=success,
                 status="success" if success else "failure",
                 error_message=error_message,
+                credits_charged=credits_charged,
+                wallet_transaction_id=wallet_transaction_id,
             ),
         )
 

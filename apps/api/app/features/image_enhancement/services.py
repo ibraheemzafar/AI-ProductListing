@@ -5,6 +5,8 @@ from uuid import uuid4
 from app.core.errors import AppError, NotFoundError
 from app.features.ai_analysis.models import AiRequestLog
 from app.features.ai_analysis.openai_client import TokenUsage
+from app.features.billing_meter.pricing import UsageInput
+from app.features.billing_meter.service import RequestMeter
 from app.features.image_enhancement.models import EnhancedImage
 from app.features.image_enhancement.providers import (
     ImageEnhancementInput,
@@ -26,11 +28,13 @@ class ImageEnhancementService:
         image_provider: ImageProvider,
         storage_provider: StorageProvider,
         retry_attempts: int,
+        billing_meter: RequestMeter,
     ) -> None:
         self._repository = repository
         self._image_provider = image_provider
         self._storage_provider = storage_provider
         self._retry_attempts = retry_attempts
+        self._billing_meter = billing_meter
 
     async def enhance_listing_image(
         self,
@@ -49,6 +53,9 @@ class ImageEnhancementService:
             raise NotFoundError("Generated listing image was not found")
 
         listing, image = source
+
+        await self._billing_meter.authorize(user_id)
+
         started_at = perf_counter()
         token_usage = TokenUsage(input_tokens=None, output_tokens=None, total_tokens=None)
         try:
@@ -80,6 +87,13 @@ class ImageEnhancementService:
                     size_bytes=len(enhanced.content),
                 ),
             )
+            request_log_id = str(uuid4())
+            charge = await self._billing_meter.charge(
+                user_id=user_id,
+                workflow="image_enhancement",
+                usage=UsageInput(),
+                request_log_id=request_log_id,
+            )
             await self._log_request(
                 user_id=user_id,
                 product_id=listing.product_id,
@@ -88,6 +102,9 @@ class ImageEnhancementService:
                 latency_ms=self._elapsed_ms(started_at),
                 success=True,
                 error_message=None,
+                request_log_id=request_log_id,
+                credits_charged=charge.credits_charged,
+                wallet_transaction_id=charge.transaction_id,
             )
             return EnhancedImageResponse.from_model(saved_image)
         except Exception as error:
@@ -129,9 +146,13 @@ class ImageEnhancementService:
         latency_ms: int,
         success: bool,
         error_message: str | None,
+        request_log_id: str | None = None,
+        credits_charged: int | None = None,
+        wallet_transaction_id: str | None = None,
     ) -> None:
         await self._repository.create_request_log(
             AiRequestLog(
+                id=request_log_id or str(uuid4()),
                 user_id=user_id,
                 product_id=product_id,
                 image_id=image_id,
@@ -145,6 +166,8 @@ class ImageEnhancementService:
                 success=success,
                 status="success" if success else "failure",
                 error_message=error_message,
+                credits_charged=credits_charged,
+                wallet_transaction_id=wallet_transaction_id,
             ),
         )
 

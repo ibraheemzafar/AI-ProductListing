@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database import Base
@@ -52,6 +52,12 @@ class AiRequestLog(Base):
     success: Mapped[bool] = mapped_column(Boolean)
     status: Mapped[str] = mapped_column(String(50), default="success")
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Credits debited from the wallet for this request, and the ledger entry it
+    # produced. The wallet_transactions ledger remains the source of truth; these
+    # are a convenience back-reference (no ORM-level FK to avoid cross-feature
+    # mapper coupling — the DB enforces the FK).
+    credits_charged: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    wallet_transaction_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
