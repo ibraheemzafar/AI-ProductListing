@@ -25,6 +25,9 @@ class SubscriptionService:
     async def get_plan_by_stripe_price_id(self, price_id: str) -> SubscriptionPlan | None:
         return await self._repository.get_plan_by_stripe_price_id(price_id)
 
+    async def get_plan_by_paddle_price_id(self, price_id: str) -> SubscriptionPlan | None:
+        return await self._repository.get_plan_by_paddle_price_id(price_id)
+
     async def get_current_subscription(self, user_id: str) -> UserSubscriptionRow | None:
         return await self._repository.get_current_subscription(user_id)
 
@@ -34,23 +37,33 @@ class SubscriptionService:
     ) -> UserSubscription | None:
         return await self._repository.get_subscription_by_stripe_id(stripe_subscription_id)
 
+    async def get_subscription_by_paddle_id(
+        self,
+        paddle_subscription_id: str,
+    ) -> UserSubscription | None:
+        return await self._repository.get_subscription_by_paddle_id(paddle_subscription_id)
+
     async def upsert_subscription(
         self,
         *,
         user_id: str,
         plan_id: str,
         stripe_customer_id: str | None,
-        stripe_subscription_id: str,
+        stripe_subscription_id: str | None,
         status: str,
         current_period_start: datetime | None,
         current_period_end: datetime | None,
         cancel_at_period_end: bool,
+        paddle_customer_id: str | None = None,
+        paddle_subscription_id: str | None = None,
     ) -> UserSubscription:
         return await self._repository.upsert_subscription(
             user_id=user_id,
             plan_id=plan_id,
             stripe_customer_id=stripe_customer_id,
             stripe_subscription_id=stripe_subscription_id,
+            paddle_customer_id=paddle_customer_id,
+            paddle_subscription_id=paddle_subscription_id,
             status=status,
             current_period_start=current_period_start,
             current_period_end=current_period_end,
@@ -59,3 +72,10 @@ class SubscriptionService:
 
     async def update_subscription_status(self, stripe_subscription_id: str, status: str) -> None:
         await self._repository.update_subscription_status(stripe_subscription_id, status)
+
+    async def update_paddle_subscription_status(
+        self,
+        paddle_subscription_id: str,
+        status: str,
+    ) -> None:
+        await self._repository.update_paddle_subscription_status(paddle_subscription_id, status)

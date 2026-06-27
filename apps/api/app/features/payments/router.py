@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, Request
 
 from app.features.auth.dependencies import get_current_user
 from app.features.auth.models import User
-from app.features.payments.dependencies import get_payment_service, get_webhook_service
+from app.features.payments.dependencies import (
+    get_paddle_webhook_service,
+    get_payment_service,
+    get_stripe_webhook_service,
+)
+from app.features.payments.paddle_webhook_service import PaddleWebhookService
 from app.features.payments.schemas import (
     CheckoutSessionRequest,
     CheckoutSessionResponse,
@@ -38,10 +43,22 @@ async def create_portal_session(
 @router.post("/webhooks/stripe")
 async def stripe_webhook(
     request: Request,
-    webhook_service: Annotated[WebhookService, Depends(get_webhook_service)],
+    webhook_service: Annotated[WebhookService, Depends(get_stripe_webhook_service)],
 ) -> dict[str, bool]:
     # Public endpoint: authenticated by Stripe signature, not the session cookie.
     payload = await request.body()
     signature = request.headers.get("stripe-signature", "")
+    await webhook_service.handle(payload=payload, signature=signature)
+    return {"received": True}
+
+
+@router.post("/webhooks/paddle")
+async def paddle_webhook(
+    request: Request,
+    webhook_service: Annotated[PaddleWebhookService, Depends(get_paddle_webhook_service)],
+) -> dict[str, bool]:
+    # Public endpoint: authenticated by Paddle signature, not the session cookie.
+    payload = await request.body()
+    signature = request.headers.get("paddle-signature", "")
     await webhook_service.handle(payload=payload, signature=signature)
     return {"received": True}

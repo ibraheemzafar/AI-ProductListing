@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS product_analysis_results (
   id VARCHAR(36) PRIMARY KEY,
   product_id VARCHAR(36) NOT NULL REFERENCES products(id),
   image_id VARCHAR(36) NOT NULL REFERENCES product_images(id),
+  valid_product BOOLEAN NOT NULL DEFAULT TRUE,
+  confidence DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+  reason TEXT,
   category VARCHAR(255) NOT NULL,
   product_type VARCHAR(255) NOT NULL,
   color VARCHAR(255) NOT NULL,
@@ -65,6 +68,13 @@ CREATE INDEX IF NOT EXISTS ix_ai_request_logs_user_workflow_created_at
   ON ai_request_logs (user_id, workflow_name, created_at DESC);
 ALTER TABLE ai_request_logs
   ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'success';
+
+ALTER TABLE product_analysis_results
+  ADD COLUMN IF NOT EXISTS valid_product BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE product_analysis_results
+  ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION NOT NULL DEFAULT 1.0;
+ALTER TABLE product_analysis_results
+  ADD COLUMN IF NOT EXISTS reason TEXT;
 
 CREATE TABLE IF NOT EXISTS generated_listings (
   id VARCHAR(36) PRIMARY KEY,

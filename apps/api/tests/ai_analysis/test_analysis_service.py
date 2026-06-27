@@ -35,6 +35,9 @@ class InMemoryAiAnalysisRepository(AiAnalysisRepository):
             id="analysis-1",
             product_id=product_id,
             image_id=image_id,
+            valid_product=attributes.valid_product,
+            confidence=attributes.confidence,
+            reason=attributes.reason,
             category=attributes.category,
             product_type=attributes.product_type,
             color=attributes.color,
@@ -67,8 +70,13 @@ class InMemoryStorageProvider(StorageProvider):
 class FakeVisionClient:
     model_name = "fake-vision"
 
-    def __init__(self, failures_before_success: int = 0) -> None:
+    def __init__(
+        self,
+        failures_before_success: int = 0,
+        attributes: ProductAttributes | None = None,
+    ) -> None:
         self.failures_before_success = failures_before_success
+        self.attributes = attributes
         self.calls = 0
 
     async def analyze_product_image(
@@ -82,15 +90,7 @@ class FakeVisionClient:
         if self.calls <= self.failures_before_success:
             raise RuntimeError("temporary OpenAI failure")
         return VisionAnalysisResult(
-            attributes=ProductAttributes(
-                category="Apparel",
-                product_type="T-shirt",
-                color="Black",
-                material="Cotton",
-                style="Minimal",
-                visible_text_brand="unknown",
-                target_audience="Adults",
-            ),
+            attributes=self.attributes or build_valid_attributes(),
             token_usage=TokenUsage(input_tokens=10, output_tokens=20, total_tokens=30),
         )
 
@@ -117,10 +117,68 @@ async def test_analysis_service_saves_result_and_logs_success() -> None:
     response = await service.analyze_uploaded_image(user_id="user-1", image_id="image-1")
 
     assert response.attributes.category == "Apparel"
+    assert response.valid_product is True
+    assert response.confidence == 0.92
     assert repository.saved_analysis is not None
     assert repository.logs[0].success is True
     assert repository.logs[0].model_name == "fake-vision"
     assert repository.logs[0].total_tokens == 30
+
+
+@pytest.mark.asyncio
+async def test_analysis_service_rejects_placeholder_image_response() -> None:
+    repository = InMemoryAiAnalysisRepository(image=build_image())
+    service = AiAnalysisService(
+        repository=repository,
+        storage_provider=InMemoryStorageProvider(),
+        vision_client=FakeVisionClient(attributes=build_invalid_attributes("Placeholder image")),
+        prompt_loader=FakePromptLoader(),
+        retry_attempts=3,
+    )
+
+    with pytest.raises(AppError, match="No clear product was detected"):
+        await service.analyze_uploaded_image(user_id="user-1", image_id="image-1")
+
+    assert repository.saved_analysis is None
+    assert repository.logs[0].status == "invalid_image"
+    assert repository.logs[0].success is False
+    assert "Placeholder image" in (repository.logs[0].error_message or "")
+
+
+@pytest.mark.asyncio
+async def test_analysis_service_rejects_blank_non_product_response() -> None:
+    repository = InMemoryAiAnalysisRepository(image=build_image())
+    service = AiAnalysisService(
+        repository=repository,
+        storage_provider=InMemoryStorageProvider(),
+        vision_client=FakeVisionClient(attributes=build_invalid_attributes("Blank image")),
+        prompt_loader=FakePromptLoader(),
+        retry_attempts=3,
+    )
+
+    with pytest.raises(AppError, match="No clear product was detected"):
+        await service.analyze_uploaded_image(user_id="user-1", image_id="image-1")
+
+    assert repository.saved_analysis is None
+    assert repository.logs[0].status == "invalid_image"
+
+
+@pytest.mark.asyncio
+async def test_analysis_service_rejects_low_confidence_product_response() -> None:
+    repository = InMemoryAiAnalysisRepository(image=build_image())
+    service = AiAnalysisService(
+        repository=repository,
+        storage_provider=InMemoryStorageProvider(),
+        vision_client=FakeVisionClient(attributes=build_valid_attributes(confidence=0.42)),
+        prompt_loader=FakePromptLoader(),
+        retry_attempts=3,
+    )
+
+    with pytest.raises(AppError, match="No clear product was detected"):
+        await service.analyze_uploaded_image(user_id="user-1", image_id="image-1")
+
+    assert repository.saved_analysis is None
+    assert repository.logs[0].status == "invalid_image"
 
 
 @pytest.mark.asyncio
@@ -182,4 +240,27 @@ def build_image() -> ProductImage:
         content_type="image/jpeg",
         size_bytes=1024,
         created_at=datetime.now(UTC),
+    )
+
+
+def build_valid_attributes(confidence: float = 0.92) -> ProductAttributes:
+    return ProductAttributes(
+        valid_product=True,
+        confidence=confidence,
+        reason=None,
+        category="Apparel",
+        product_type="T-shirt",
+        color="Black",
+        material="Cotton",
+        style="Minimal",
+        visible_text_brand="unknown",
+        target_audience="Adults",
+    )
+
+
+def build_invalid_attributes(reason: str) -> ProductAttributes:
+    return ProductAttributes(
+        valid_product=False,
+        confidence=0.0,
+        reason=reason,
     )

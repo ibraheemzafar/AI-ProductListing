@@ -22,6 +22,8 @@ class StripePaymentProvider:
     instead of crashing the whole API at import time.
     """
 
+    provider_code = "stripe"
+
     def __init__(self, *, api_key: str, webhook_secret: str) -> None:
         self._api_key = api_key
         self._webhook_secret = webhook_secret

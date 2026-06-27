@@ -8,7 +8,7 @@ from app.core.errors import AppError, NotFoundError
 from app.features.ai_analysis.models import AiRequestLog
 from app.features.ai_analysis.openai_client import TokenUsage
 from app.features.billing_meter.pricing import UsageInput
-from app.features.billing_meter.service import RequestMeter
+from app.features.billing_meter.service import ChargeResult, RequestMeter
 from app.features.listing_generation.openai_client import (
     ListingGenerationClient,
     ListingGenerationResult,
@@ -24,6 +24,26 @@ from app.features.listing_generation.schemas import (
 from app.features.listing_improvement.schemas import ListingVersionResponse
 
 MAX_LISTINGS_PAGE_SIZE = 50
+MIN_VALID_PRODUCT_CONFIDENCE = 0.65
+INVALID_PRODUCT_IMAGE_MESSAGE = (
+    "No clear product was detected. Please upload a clear product image."
+)
+
+
+class NoopRequestMeter:
+    async def authorize(self, user_id: str) -> None:
+        del user_id
+
+    async def charge(
+        self,
+        *,
+        user_id: str,
+        workflow: str,
+        usage: UsageInput,
+        request_log_id: str,
+    ) -> ChargeResult:
+        del user_id, workflow, usage, request_log_id
+        return ChargeResult(credits_charged=0, transaction_id="")
 
 
 class ListingGenerationService:
@@ -33,13 +53,13 @@ class ListingGenerationService:
         listing_client: ListingGenerationClient,
         prompt_builder: ListingPromptBuilder,
         retry_attempts: int,
-        billing_meter: RequestMeter,
+        billing_meter: RequestMeter | None = None,
     ) -> None:
         self._repository = repository
         self._listing_client = listing_client
         self._prompt_builder = prompt_builder
         self._retry_attempts = retry_attempts
-        self._billing_meter = billing_meter
+        self._billing_meter = billing_meter or NoopRequestMeter()
 
     async def list_existing_listings(
         self,
@@ -69,6 +89,8 @@ class ListingGenerationService:
         )
         if analysis is None:
             raise AppError("Product analysis was not found")
+        if not self._is_valid_product_analysis(analysis):
+            raise AppError(INVALID_PRODUCT_IMAGE_MESSAGE)
 
         await self._billing_meter.authorize(user_id)
 
@@ -147,6 +169,8 @@ class ListingGenerationService:
             raise NotFoundError("Generated listing was not found")
 
         listing, analysis = row
+        if not self._is_valid_product_analysis(analysis):
+            raise AppError(INVALID_PRODUCT_IMAGE_MESSAGE)
 
         await self._billing_meter.authorize(user_id)
 
@@ -308,3 +332,9 @@ class ListingGenerationService:
 
     def _elapsed_ms(self, started_at: float) -> int:
         return round((perf_counter() - started_at) * 1000)
+
+    def _is_valid_product_analysis(self, analysis) -> bool:  # type: ignore[no-untyped-def]
+        return (
+            analysis.valid_product
+            and analysis.confidence >= MIN_VALID_PRODUCT_CONFIDENCE
+        )

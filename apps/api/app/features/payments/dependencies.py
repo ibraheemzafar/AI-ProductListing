@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
+from app.features.payments.paddle_webhook_service import PaddleWebhookService
 from app.features.payments.repositories import SQLAlchemyPaymentsRepository
 from app.features.payments.services import PaymentService
 from app.features.payments.webhook_service import WebhookService
@@ -12,8 +13,14 @@ from app.features.subscriptions.services import SubscriptionService
 from app.features.wallet.dependencies import get_wallet_service
 from app.features.wallet.services import WalletService
 from app.infrastructure.database import get_database_session
-from app.shared.payments.dependencies import get_payment_provider
+from app.shared.payments.dependencies import (
+    get_paddle_payment_provider,
+    get_payment_provider,
+    get_stripe_payment_provider,
+)
+from app.shared.payments.paddle_provider import PaddlePaymentProvider
 from app.shared.payments.provider import PaymentProvider
+from app.shared.payments.stripe_provider import StripePaymentProvider
 
 
 def get_payment_service(
@@ -32,13 +39,27 @@ def get_payment_service(
     )
 
 
-def get_webhook_service(
+def get_stripe_webhook_service(
     database_session: Annotated[AsyncSession, Depends(get_database_session)],
-    payment_provider: Annotated[PaymentProvider, Depends(get_payment_provider)],
+    payment_provider: Annotated[StripePaymentProvider, Depends(get_stripe_payment_provider)],
     subscription_service: Annotated[SubscriptionService, Depends(get_subscription_service)],
     wallet_service: Annotated[WalletService, Depends(get_wallet_service)],
 ) -> WebhookService:
     return WebhookService(
+        payment_provider=payment_provider,
+        payments_repository=SQLAlchemyPaymentsRepository(database_session),
+        subscription_service=subscription_service,
+        wallet_service=wallet_service,
+    )
+
+
+def get_paddle_webhook_service(
+    database_session: Annotated[AsyncSession, Depends(get_database_session)],
+    payment_provider: Annotated[PaddlePaymentProvider, Depends(get_paddle_payment_provider)],
+    subscription_service: Annotated[SubscriptionService, Depends(get_subscription_service)],
+    wallet_service: Annotated[WalletService, Depends(get_wallet_service)],
+) -> PaddleWebhookService:
+    return PaddleWebhookService(
         payment_provider=payment_provider,
         payments_repository=SQLAlchemyPaymentsRepository(database_session),
         subscription_service=subscription_service,

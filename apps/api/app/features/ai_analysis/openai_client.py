@@ -96,27 +96,33 @@ class OpenAIVisionAnalysisClient:
                         "format": {
                             "type": "json_schema",
                             "name": "product_attributes",
-                            "strict": True,
+                            "strict": False,
                             "schema": {
                                 "type": "object",
                                 "additionalProperties": False,
                                 "properties": {
+                                    "valid_product": {"type": "boolean"},
+                                    "confidence": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1,
+                                    },
+                                    "reason": {"type": ["string", "null"]},
                                     "category": {"type": "string"},
                                     "product_type": {"type": "string"},
                                     "color": {"type": "string"},
                                     "material": {"type": "string"},
                                     "style": {"type": "string"},
-                                    "visible_text_brand": {"type": "string"},
-                                    "target_audience": {"type": "string"},
+                                    "visible_text_brand": {
+                                        "type": "string",
+                                    },
+                                    "target_audience": {
+                                        "type": "string",
+                                    },
                                 },
                                 "required": [
-                                    "category",
-                                    "product_type",
-                                    "color",
-                                    "material",
-                                    "style",
-                                    "visible_text_brand",
-                                    "target_audience",
+                                    "valid_product",
+                                    "confidence",
                                 ],
                             },
                         },

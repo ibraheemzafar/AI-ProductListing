@@ -118,6 +118,8 @@ const workflowSteps: Array<{
 
 const defaultMarketplace: Marketplace = 'shopify';
 const defaultScenePreset: ScenePreset = 'lifestyle_home_setup';
+const invalidProductImageMessage =
+  'No clear product was detected. Please upload a clear product image.';
 
 // The upload page is a linear wizard: Analyze -> Generate -> open the listing detail page,
 // where all editing, versioning, SEO, and image work lives. No inline versioning here.
@@ -234,6 +236,20 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'AI asset generation failed.';
+      if (isInvalidProductImageError(message)) {
+        setWorkflow(image.id, {
+          statusByStep: {
+            upload: 'completed',
+            analysis: 'error',
+            listing: 'skipped',
+            seo: 'skipped',
+            marketplace: 'skipped',
+            image: 'skipped',
+            finalizing: 'skipped',
+          },
+          message,
+        });
+      }
       setErrorByImageId((current) => ({ ...current, [image.id]: message }));
       setWorkflowMessage(image.id, message);
       showToast(message);
@@ -320,6 +336,10 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
     window.setTimeout(() => setToastMessage(null), 2500);
   }
 
+  function isInvalidProductImageError(message: string) {
+    return message === invalidProductImageMessage;
+  }
+
   return (
     <div className="flex flex-col gap-8">
       {toastMessage ? (
@@ -374,6 +394,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
               const analysis = analysisByImageId[image.id];
               const listing = listingByImageId[image.id];
               const workflow = workflowByImageId[image.id];
+              const errorMessage = errorByImageId[image.id];
               const isGeneratingAssets = activeImageId === image.id;
 
               return (
@@ -423,10 +444,14 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
                     />
                   </div>
 
-                  {errorByImageId[image.id] ? (
-                    <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
-                      {errorByImageId[image.id]}
-                    </p>
+                  {errorMessage ? (
+                    isInvalidProductImageError(errorMessage) ? (
+                      <InvalidProductImagePanel />
+                    ) : (
+                      <p className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
+                        {errorMessage}
+                      </p>
+                    )
                   ) : null}
 
                   {analysis ? (
@@ -502,6 +527,18 @@ function WorkflowOption({
       />
       <span>{label}</span>
     </label>
+  );
+}
+
+function InvalidProductImagePanel() {
+  return (
+    <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-3 text-sm text-red-100">
+      <p className="font-semibold">No recognizable product was found.</p>
+      <p className="mt-1 leading-5 text-red-100/85">
+        Upload a clear image with one primary product. Placeholder graphics, blank images,
+        screenshots, logo-only images, or text-only images cannot be used for listing generation.
+      </p>
+    </div>
   );
 }
 

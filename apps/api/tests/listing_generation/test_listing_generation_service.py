@@ -156,6 +156,42 @@ async def test_listing_generation_service_handles_missing_analysis() -> None:
 
 
 @pytest.mark.asyncio
+async def test_listing_generation_service_stops_for_invalid_product_analysis() -> None:
+    repository = InMemoryListingGenerationRepository(analysis=build_analysis(valid_product=False))
+    listing_client = FakeListingClient()
+    service = ListingGenerationService(
+        repository=repository,
+        listing_client=listing_client,
+        prompt_builder=FakePromptBuilder(),
+        retry_attempts=3,
+    )
+
+    with pytest.raises(AppError, match="No clear product was detected"):
+        await service.generate_listing(user_id="user-1", analysis_id="analysis-1")
+
+    assert listing_client.calls == 0
+    assert repository.saved_listing is None
+
+
+@pytest.mark.asyncio
+async def test_listing_generation_service_stops_for_low_confidence_analysis() -> None:
+    repository = InMemoryListingGenerationRepository(analysis=build_analysis(confidence=0.42))
+    listing_client = FakeListingClient()
+    service = ListingGenerationService(
+        repository=repository,
+        listing_client=listing_client,
+        prompt_builder=FakePromptBuilder(),
+        retry_attempts=3,
+    )
+
+    with pytest.raises(AppError, match="No clear product was detected"):
+        await service.generate_listing(user_id="user-1", analysis_id="analysis-1")
+
+    assert listing_client.calls == 0
+    assert repository.saved_listing is None
+
+
+@pytest.mark.asyncio
 async def test_listing_generation_service_logs_openai_failure() -> None:
     repository = InMemoryListingGenerationRepository(analysis=build_analysis())
     service = ListingGenerationService(
@@ -216,11 +252,14 @@ async def test_listing_generation_service_hides_missing_or_unauthorized_detail()
         await service.get_generated_listing_detail(user_id="user-1", listing_id="other-listing")
 
 
-def build_analysis() -> ProductAnalysisResult:
+def build_analysis(valid_product: bool = True, confidence: float = 0.92) -> ProductAnalysisResult:
     return ProductAnalysisResult(
         id="analysis-1",
         product_id="product-1",
         image_id="image-1",
+        valid_product=valid_product,
+        confidence=confidence,
+        reason=None if valid_product else "No recognizable product detected.",
         category="Apparel",
         product_type="T-shirt",
         color="Black",

@@ -6,7 +6,13 @@ interface ApiProductAnalysis {
   id: string;
   product_id: string;
   image_id: string;
+  valid_product: boolean;
+  confidence: number;
+  reason: string | null;
   attributes: {
+    valid_product: boolean;
+    confidence: number;
+    reason: string | null;
     category: string;
     product_type: string;
     color: string;
@@ -69,6 +75,9 @@ function mapAnalysis(analysis: ApiProductAnalysis): ProductAnalysisResult {
     productId: analysis.product_id,
     imageId: analysis.image_id,
     attributes: {
+      validProduct: analysis.attributes.valid_product ?? analysis.valid_product ?? true,
+      confidence: analysis.attributes.confidence ?? analysis.confidence ?? 1,
+      reason: analysis.attributes.reason ?? analysis.reason ?? null,
       category: analysis.attributes.category,
       productType: analysis.attributes.product_type,
       color: analysis.attributes.color,
@@ -77,6 +86,9 @@ function mapAnalysis(analysis: ApiProductAnalysis): ProductAnalysisResult {
       visibleTextBrand: analysis.attributes.visible_text_brand,
       targetAudience: analysis.attributes.target_audience,
     },
+    validProduct: analysis.valid_product ?? analysis.attributes.valid_product ?? true,
+    confidence: analysis.confidence ?? analysis.attributes.confidence ?? 1,
+    reason: analysis.reason ?? analysis.attributes.reason ?? null,
     createdAt: analysis.created_at,
   };
 }

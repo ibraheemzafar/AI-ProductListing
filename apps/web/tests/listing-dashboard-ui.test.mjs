@@ -34,6 +34,17 @@ test('dashboard route includes loading and error states', () => {
   assert.match(globalErrorSource, /Application error/);
 });
 
+test('upload workspace displays invalid product image validation state', () => {
+  const source = readSource('../app/dashboard/upload/upload-workspace.tsx');
+
+  assert.match(source, /No clear product was detected/);
+  assert.match(source, /No recognizable product was found/);
+  assert.match(source, /Upload a clear image with one primary product/);
+  assert.match(source, /listing: 'skipped'/);
+  assert.match(source, /seo: 'skipped'/);
+  assert.match(source, /marketplace: 'skipped'/);
+});
+
 test('listing detail view includes generated listing fields and copy actions', () => {
   const source = readSource('../app/dashboard/listings/[listingId]/listing-detail-view.tsx');
 

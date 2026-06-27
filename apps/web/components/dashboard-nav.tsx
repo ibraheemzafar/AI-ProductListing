@@ -1,6 +1,6 @@
 'use client';
 
-import { ImagePlus, LayoutDashboard, Sparkles, type LucideIcon } from 'lucide-react';
+import { CreditCard, ImagePlus, LayoutDashboard, Sparkles, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 const navigationItems: Array<{ href: string; label: string; icon: LucideIcon }> = [
   { href: '/dashboard', label: 'Listings', icon: LayoutDashboard },
   { href: '/dashboard/upload', label: 'Upload', icon: ImagePlus },
+  { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
 ];
 
 export function DashboardBrand() {

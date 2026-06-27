@@ -3,7 +3,7 @@
 -- matching the existing convention. The wallet_transactions ledger is the source of truth
 -- for credit balances; wallets.available_credits is a maintained cache.
 
--- Admin-defined subscription plans and one-time top-up packs (mirrored to Stripe).
+-- Admin-defined subscription plans and one-time top-up packs (mirrored to payment providers).
 CREATE TABLE IF NOT EXISTS subscription_plans (
   id                VARCHAR(36) PRIMARY KEY,
   code              VARCHAR(50) NOT NULL UNIQUE,
@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS subscription_plans (
   rollover          BOOLEAN NOT NULL DEFAULT FALSE,              -- capped rollover when TRUE
   stripe_product_id VARCHAR(255),
   stripe_price_id   VARCHAR(255),
+  paddle_product_id VARCHAR(255),
+  paddle_price_id   VARCHAR(255),
   is_active         BOOLEAN NOT NULL DEFAULT TRUE,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -28,7 +30,7 @@ CREATE INDEX IF NOT EXISTS ix_subscription_plans_active ON subscription_plans (i
 
 -- Catalog of enabled payment providers (the "payment methods from DB").
 CREATE TABLE IF NOT EXISTS payment_providers (
-  code         VARCHAR(50) PRIMARY KEY,            -- 'stripe'
+  code         VARCHAR(50) PRIMARY KEY,            -- 'stripe' | 'paddle'
   display_name VARCHAR(255) NOT NULL,
   is_active    BOOLEAN NOT NULL DEFAULT TRUE,
   config       JSONB NOT NULL DEFAULT '{}',        -- non-secret config only
@@ -72,20 +74,23 @@ CREATE INDEX IF NOT EXISTS ix_wallet_transactions_wallet_id
 CREATE INDEX IF NOT EXISTS ix_wallet_transactions_user_created_at
   ON wallet_transactions (user_id, created_at DESC);
 
--- Links a user to their Stripe customer.
+-- Links a user to their payment provider customers.
 CREATE TABLE IF NOT EXISTS billing_customers (
   user_id            VARCHAR(36) PRIMARY KEY REFERENCES users(id),
-  stripe_customer_id VARCHAR(255) NOT NULL UNIQUE,
+  stripe_customer_id VARCHAR(255) UNIQUE,
+  paddle_customer_id VARCHAR(255) UNIQUE,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- A user's subscription, synced from Stripe (Stripe is the source of truth for status).
+-- A user's subscription, synced from the active payment provider.
 CREATE TABLE IF NOT EXISTS user_subscriptions (
   id                     VARCHAR(36) PRIMARY KEY,
   user_id                VARCHAR(36) NOT NULL REFERENCES users(id),
   plan_id                VARCHAR(36) NOT NULL REFERENCES subscription_plans(id),
   stripe_customer_id     VARCHAR(255),
   stripe_subscription_id VARCHAR(255) UNIQUE,
+  paddle_customer_id     VARCHAR(255),
+  paddle_subscription_id VARCHAR(255) UNIQUE,
   status                 VARCHAR(40) NOT NULL,  -- active|past_due|canceled|incomplete|...
   current_period_start   TIMESTAMPTZ,
   current_period_end     TIMESTAMPTZ,
@@ -102,6 +107,7 @@ CREATE TABLE IF NOT EXISTS user_payment_methods (
   user_id                  VARCHAR(36) NOT NULL REFERENCES users(id),
   provider_code            VARCHAR(50) NOT NULL REFERENCES payment_providers(code),
   stripe_payment_method_id VARCHAR(255),
+  paddle_payment_method_id VARCHAR(255),
   brand                    VARCHAR(50),
   last4                    VARCHAR(4),
   exp_month                INTEGER,
@@ -126,10 +132,39 @@ ALTER TABLE ai_request_logs
 ALTER TABLE ai_request_logs
   ADD COLUMN IF NOT EXISTS wallet_transaction_id VARCHAR(36) REFERENCES wallet_transactions(id);
 
--- Seed the default payment provider and example plans. Stripe product/price ids are
--- filled in once products are created in Stripe (Phase 5). Safe to re-run.
+-- Compatibility upgrades for existing local databases.
+ALTER TABLE subscription_plans
+  ADD COLUMN IF NOT EXISTS paddle_product_id VARCHAR(255);
+ALTER TABLE subscription_plans
+  ADD COLUMN IF NOT EXISTS paddle_price_id VARCHAR(255);
+
+ALTER TABLE billing_customers
+  ALTER COLUMN stripe_customer_id DROP NOT NULL;
+ALTER TABLE billing_customers
+  ADD COLUMN IF NOT EXISTS paddle_customer_id VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_billing_customers_paddle_customer_id
+  ON billing_customers (paddle_customer_id)
+  WHERE paddle_customer_id IS NOT NULL;
+
+ALTER TABLE user_subscriptions
+  ADD COLUMN IF NOT EXISTS paddle_customer_id VARCHAR(255);
+ALTER TABLE user_subscriptions
+  ADD COLUMN IF NOT EXISTS paddle_subscription_id VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_subscriptions_paddle_subscription_id
+  ON user_subscriptions (paddle_subscription_id)
+  WHERE paddle_subscription_id IS NOT NULL;
+
+ALTER TABLE user_payment_methods
+  ADD COLUMN IF NOT EXISTS paddle_payment_method_id VARCHAR(255);
+
+-- Seed the default payment providers and example plans. Provider product/price ids are
+-- filled in once products are created in Stripe/Paddle. Safe to re-run.
 INSERT INTO payment_providers (code, display_name, is_active)
 VALUES ('stripe', 'Stripe', TRUE)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO payment_providers (code, display_name, is_active)
+VALUES ('paddle', 'Paddle', TRUE)
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO subscription_plans

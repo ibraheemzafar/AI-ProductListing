@@ -23,6 +23,9 @@ class SubscriptionRepository(Protocol):
     async def get_plan_by_stripe_price_id(self, price_id: str) -> SubscriptionPlan | None:
         pass
 
+    async def get_plan_by_paddle_price_id(self, price_id: str) -> SubscriptionPlan | None:
+        pass
+
     async def get_current_subscription(self, user_id: str) -> UserSubscriptionRow | None:
         pass
 
@@ -32,13 +35,21 @@ class SubscriptionRepository(Protocol):
     ) -> UserSubscription | None:
         pass
 
+    async def get_subscription_by_paddle_id(
+        self,
+        paddle_subscription_id: str,
+    ) -> UserSubscription | None:
+        pass
+
     async def upsert_subscription(
         self,
         *,
         user_id: str,
         plan_id: str,
         stripe_customer_id: str | None,
-        stripe_subscription_id: str,
+        stripe_subscription_id: str | None,
+        paddle_customer_id: str | None,
+        paddle_subscription_id: str | None,
         status: str,
         current_period_start: datetime | None,
         current_period_end: datetime | None,
@@ -49,6 +60,13 @@ class SubscriptionRepository(Protocol):
     async def update_subscription_status(
         self,
         stripe_subscription_id: str,
+        status: str,
+    ) -> None:
+        pass
+
+    async def update_paddle_subscription_status(
+        self,
+        paddle_subscription_id: str,
         status: str,
     ) -> None:
         pass
@@ -81,6 +99,12 @@ class SQLAlchemySubscriptionRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_plan_by_paddle_price_id(self, price_id: str) -> SubscriptionPlan | None:
+        result = await self._database_session.execute(
+            select(SubscriptionPlan).where(SubscriptionPlan.paddle_price_id == price_id),
+        )
+        return result.scalar_one_or_none()
+
     async def get_current_subscription(self, user_id: str) -> UserSubscriptionRow | None:
         result = await self._database_session.execute(
             select(UserSubscription, SubscriptionPlan)
@@ -104,23 +128,42 @@ class SQLAlchemySubscriptionRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_subscription_by_paddle_id(
+        self,
+        paddle_subscription_id: str,
+    ) -> UserSubscription | None:
+        result = await self._database_session.execute(
+            select(UserSubscription).where(
+                UserSubscription.paddle_subscription_id == paddle_subscription_id,
+            ),
+        )
+        return result.scalar_one_or_none()
+
     async def upsert_subscription(
         self,
         *,
         user_id: str,
         plan_id: str,
         stripe_customer_id: str | None,
-        stripe_subscription_id: str,
+        stripe_subscription_id: str | None,
+        paddle_customer_id: str | None,
+        paddle_subscription_id: str | None,
         status: str,
         current_period_start: datetime | None,
         current_period_end: datetime | None,
         cancel_at_period_end: bool,
     ) -> UserSubscription:
-        existing = await self.get_subscription_by_stripe_id(stripe_subscription_id)
+        existing = await self._get_existing_subscription(
+            stripe_subscription_id=stripe_subscription_id,
+            paddle_subscription_id=paddle_subscription_id,
+        )
         if existing is not None:
             existing.user_id = user_id
             existing.plan_id = plan_id
             existing.stripe_customer_id = stripe_customer_id
+            existing.stripe_subscription_id = stripe_subscription_id
+            existing.paddle_customer_id = paddle_customer_id
+            existing.paddle_subscription_id = paddle_subscription_id
             existing.status = status
             existing.current_period_start = current_period_start
             existing.current_period_end = current_period_end
@@ -135,6 +178,8 @@ class SQLAlchemySubscriptionRepository:
             plan_id=plan_id,
             stripe_customer_id=stripe_customer_id,
             stripe_subscription_id=stripe_subscription_id,
+            paddle_customer_id=paddle_customer_id,
+            paddle_subscription_id=paddle_subscription_id,
             status=status,
             current_period_start=current_period_start,
             current_period_end=current_period_end,
@@ -146,7 +191,10 @@ class SQLAlchemySubscriptionRepository:
         except IntegrityError:
             # Concurrent create for the same stripe_subscription_id.
             await self._database_session.rollback()
-            existing = await self.get_subscription_by_stripe_id(stripe_subscription_id)
+            existing = await self._get_existing_subscription(
+                stripe_subscription_id=stripe_subscription_id,
+                paddle_subscription_id=paddle_subscription_id,
+            )
             if existing is None:
                 raise
             return existing
@@ -164,3 +212,29 @@ class SQLAlchemySubscriptionRepository:
         existing.status = status
         existing.updated_at = datetime.now(UTC)
         await self._database_session.commit()
+
+    async def update_paddle_subscription_status(
+        self,
+        paddle_subscription_id: str,
+        status: str,
+    ) -> None:
+        existing = await self.get_subscription_by_paddle_id(paddle_subscription_id)
+        if existing is None:
+            return
+        existing.status = status
+        existing.updated_at = datetime.now(UTC)
+        await self._database_session.commit()
+
+    async def _get_existing_subscription(
+        self,
+        *,
+        stripe_subscription_id: str | None,
+        paddle_subscription_id: str | None,
+    ) -> UserSubscription | None:
+        if stripe_subscription_id:
+            existing = await self.get_subscription_by_stripe_id(stripe_subscription_id)
+            if existing is not None:
+                return existing
+        if paddle_subscription_id:
+            return await self.get_subscription_by_paddle_id(paddle_subscription_id)
+        return None

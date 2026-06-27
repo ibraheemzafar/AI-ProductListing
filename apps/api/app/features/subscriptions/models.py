@@ -22,6 +22,8 @@ class SubscriptionPlan(Base):
     rollover: Mapped[bool] = mapped_column(Boolean, default=False)
     stripe_product_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     stripe_price_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    paddle_product_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    paddle_price_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -41,6 +43,12 @@ class UserSubscription(Base):
     plan_id: Mapped[str] = mapped_column(String(36), ForeignKey("subscription_plans.id"))
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(
+        String(255),
+        unique=True,
+        nullable=True,
+    )
+    paddle_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    paddle_subscription_id: Mapped[str | None] = mapped_column(
         String(255),
         unique=True,
         nullable=True,

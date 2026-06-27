@@ -65,6 +65,9 @@ class SQLAlchemyAiAnalysisRepository:
         analysis = ProductAnalysisResult(
             product_id=product_id,
             image_id=image_id,
+            valid_product=attributes.valid_product,
+            confidence=attributes.confidence,
+            reason=attributes.reason,
             category=attributes.category,
             product_type=attributes.product_type,
             color=attributes.color,

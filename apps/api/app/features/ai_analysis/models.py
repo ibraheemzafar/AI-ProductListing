@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database import Base
@@ -13,6 +13,9 @@ class ProductAnalysisResult(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     product_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), index=True)
     image_id: Mapped[str] = mapped_column(String(36), ForeignKey("product_images.id"), index=True)
+    valid_product: Mapped[bool] = mapped_column(Boolean, default=True)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     category: Mapped[str] = mapped_column(String(255))
     product_type: Mapped[str] = mapped_column(String(255))
     color: Mapped[str] = mapped_column(String(255))

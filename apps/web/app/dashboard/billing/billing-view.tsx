@@ -65,6 +65,11 @@ export function BillingView() {
   }
 
   async function handleManage() {
+    if (!subscription) {
+      setError('Choose a subscription plan before opening the billing portal.');
+      return;
+    }
+
     setPortalPending(true);
     setError(null);
     try {
@@ -116,7 +121,12 @@ export function BillingView() {
             )}
           </div>
         </div>
-        <Button type="button" variant="secondary" onClick={handleManage} disabled={portalPending}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleManage}
+          disabled={portalPending || !subscription}
+        >
           <ExternalLink className="mr-2 size-4" aria-hidden="true" />
           {portalPending ? 'Opening…' : 'Manage billing'}
         </Button>

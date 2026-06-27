@@ -35,9 +35,14 @@ class Settings(BaseSettings):
     session_cookie_samesite: Literal["lax", "strict", "none"] = Field(default="lax")
     # Billing / wallet
     signup_bonus_enabled: bool = False
+    payment_provider_code: Literal["stripe", "paddle"] = "stripe"
     stripe_secret_key: str = ""
     stripe_publishable_key: str = ""
     stripe_webhook_secret: str = ""
+    paddle_api_key: str = ""
+    paddle_webhook_secret: str = ""
+    paddle_environment: Literal["sandbox", "live"] = "sandbox"
+    paddle_checkout_url: str = ""
     billing_success_url: str = "http://localhost:3000/dashboard/billing?status=success"
     billing_cancel_url: str = "http://localhost:3000/dashboard/billing?status=cancelled"
     billing_portal_return_url: str = "http://localhost:3000/dashboard/billing"
@@ -47,6 +52,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         env_prefix="",
         case_sensitive=False,
+        extra="ignore",
     )
 
     @field_validator("access_token_expire_minutes")

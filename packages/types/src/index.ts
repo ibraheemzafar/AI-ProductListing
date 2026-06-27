@@ -45,6 +45,9 @@ export interface ProductUploadResult {
 }
 
 export interface ProductAttributes {
+  validProduct?: boolean;
+  confidence?: number;
+  reason?: string | null;
   category: string;
   productType: string;
   color: string;
@@ -59,6 +62,9 @@ export interface ProductAnalysisResult {
   productId: string;
   imageId: string;
   attributes: ProductAttributes;
+  validProduct: boolean;
+  confidence: number;
+  reason: string | null;
   createdAt: string;
 }
 

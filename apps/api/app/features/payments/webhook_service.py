@@ -182,7 +182,10 @@ class WebhookService:
         customer = subscription.get("customer")
         user_id = metadata.get("user_id")
         if user_id is None and customer is not None:
-            user_id = await self._payments_repository.get_user_id_by_customer(str(customer))
+            user_id = await self._payments_repository.get_user_id_by_customer(
+                "stripe",
+                str(customer),
+            )
         if user_id is None:
             logger.warning("Cannot map subscription to user", extra={"sub": subscription.get("id")})
             return None

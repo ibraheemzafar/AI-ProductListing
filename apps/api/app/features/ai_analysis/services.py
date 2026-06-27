@@ -15,10 +15,30 @@ from app.features.ai_analysis.prompts import PromptLoader
 from app.features.ai_analysis.repositories import AiAnalysisRepository
 from app.features.ai_analysis.schemas import ProductAnalysisResponse
 from app.features.billing_meter.pricing import UsageInput
-from app.features.billing_meter.service import RequestMeter
+from app.features.billing_meter.service import ChargeResult, RequestMeter
 from app.shared.storage.provider import StorageProvider
 
 ALLOWED_ANALYSIS_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MIN_VALID_PRODUCT_CONFIDENCE = 0.65
+INVALID_PRODUCT_IMAGE_MESSAGE = (
+    "No clear product was detected. Please upload a clear product image."
+)
+
+
+class NoopRequestMeter:
+    async def authorize(self, user_id: str) -> None:
+        del user_id
+
+    async def charge(
+        self,
+        *,
+        user_id: str,
+        workflow: str,
+        usage: UsageInput,
+        request_log_id: str,
+    ) -> ChargeResult:
+        del user_id, workflow, usage, request_log_id
+        return ChargeResult(credits_charged=0, transaction_id="")
 
 
 class AiAnalysisService:
@@ -29,14 +49,14 @@ class AiAnalysisService:
         vision_client: VisionAnalysisClient,
         prompt_loader: PromptLoader,
         retry_attempts: int,
-        billing_meter: RequestMeter,
+        billing_meter: RequestMeter | None = None,
     ) -> None:
         self._repository = repository
         self._storage_provider = storage_provider
         self._vision_client = vision_client
         self._prompt_loader = prompt_loader
         self._retry_attempts = retry_attempts
-        self._billing_meter = billing_meter
+        self._billing_meter = billing_meter or NoopRequestMeter()
 
     async def list_existing_analyses(
         self,
@@ -82,6 +102,23 @@ class AiAnalysisService:
                 prompt=prompt.content,
             )
             token_usage = analysis_result.token_usage
+            if not self._is_valid_product_analysis(analysis_result.attributes):
+                reason = analysis_result.attributes.reason or "No recognizable product detected."
+                await self._log_request(
+                    user_id=user_id,
+                    product_id=image.product_id,
+                    image_id=image.id,
+                    prompt_version=prompt.version,
+                    token_usage=token_usage,
+                    latency_ms=self._elapsed_ms(started_at),
+                    success=False,
+                    error_message=(
+                        f"{reason} Confidence: {analysis_result.attributes.confidence:.2f}"
+                    ),
+                    status="invalid_image",
+                )
+                raise AppError(INVALID_PRODUCT_IMAGE_MESSAGE)
+
             saved_analysis = await self._repository.save_analysis_result(
                 product_id=image.product_id,
                 image_id=image.id,
@@ -124,6 +161,8 @@ class AiAnalysisService:
             )
             raise AppError("AI returned an invalid product analysis. Please try again.") from error
         except Exception as error:
+            if isinstance(error, AppError):
+                raise
             await self._log_request(
                 user_id=user_id,
                 product_id=image.product_id,
@@ -171,6 +210,7 @@ class AiAnalysisService:
         request_log_id: str | None = None,
         credits_charged: int | None = None,
         wallet_transaction_id: str | None = None,
+        status: str | None = None,
     ) -> None:
         await self._repository.create_request_log(
             AiRequestLog(
@@ -186,7 +226,7 @@ class AiAnalysisService:
                 total_tokens=token_usage.total_tokens,
                 latency_ms=latency_ms,
                 success=success,
-                status="success" if success else "failure",
+                status=status or ("success" if success else "failure"),
                 error_message=error_message,
                 credits_charged=credits_charged,
                 wallet_transaction_id=wallet_transaction_id,
@@ -195,3 +235,9 @@ class AiAnalysisService:
 
     def _elapsed_ms(self, started_at: float) -> int:
         return round((perf_counter() - started_at) * 1000)
+
+    def _is_valid_product_analysis(self, attributes) -> bool:  # type: ignore[no-untyped-def]
+        return (
+            attributes.valid_product
+            and attributes.confidence >= MIN_VALID_PRODUCT_CONFIDENCE
+        )

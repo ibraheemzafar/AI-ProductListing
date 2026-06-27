@@ -10,7 +10,8 @@ class BillingCustomer(Base):
     __tablename__ = "billing_customers"
 
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), primary_key=True)
-    stripe_customer_id: Mapped[str] = mapped_column(String(255), unique=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    paddle_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

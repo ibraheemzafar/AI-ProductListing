@@ -23,7 +23,9 @@ class WebhookEvent:
 
 
 class PaymentProvider(Protocol):
-    """Abstraction over a payment gateway (Stripe is the only implementation today)."""
+    """Abstraction over a payment gateway."""
+
+    provider_code: str
 
     async def create_customer(self, *, email: str, metadata: dict[str, str]) -> str:
         """Create a gateway customer and return its id."""
