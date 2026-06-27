@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.features.ai_analysis.openai_client import OpenAIVisionAnalysisClient
-from app.features.billing_meter.dependencies import get_token_billing_meter
-from app.features.billing_meter.service import BillingMeter
 from app.features.ai_analysis.prompts import PromptLoader
 from app.features.ai_analysis.repositories import SQLAlchemyAiAnalysisRepository
 from app.features.ai_analysis.services import AiAnalysisService
+from app.features.billing_meter.dependencies import get_token_billing_meter
+from app.features.billing_meter.service import BillingMeter
 from app.infrastructure.database import get_database_session
 from app.shared.storage.dependencies import get_storage_provider
 from app.shared.storage.provider import StorageProvider

@@ -1,23 +1,28 @@
 'use client';
 
 import {
+  ArrowLeft,
   Check,
   Clipboard,
   Download,
+  FileText,
   ImageIcon,
+  Layers3,
+  Loader2,
+  Megaphone,
   RefreshCw,
   SearchCheck,
   ShoppingBag,
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { type ReactNode, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import Link from 'next/link';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import type {
   GeneratedListing,
   GeneratedSceneImage,
-  EnhancedImageResult,
-  ImageEnhancementOperation,
   ListingDetail,
   ListingImprovementResult,
   ListingVersion,
@@ -29,7 +34,6 @@ import type {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { notifyWalletChanged } from '@/lib/api/billing';
-import { enhanceListingImage } from '@/lib/api/image-enhancements';
 import {
   deleteGeneratedLifestyleScene,
   downloadGeneratedLifestyleScene,
@@ -49,19 +53,25 @@ import {
 } from '@/lib/api/marketplace-optimizations';
 import { analyzeListingSeo } from '@/lib/api/seo-analysis';
 
+type ResultTab = 'overview' | 'listing' | 'images' | 'marketplace' | 'marketing' | 'history';
+
+const RESULT_TABS: Array<{ value: ResultTab; label: string; icon: typeof FileText }> = [
+  { value: 'overview', label: 'Overview', icon: Sparkles },
+  { value: 'listing', label: 'Listing', icon: FileText },
+  { value: 'images', label: 'Images', icon: ImageIcon },
+  { value: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
+  { value: 'marketing', label: 'Marketing', icon: Megaphone },
+  { value: 'history', label: 'History', icon: Layers3 },
+];
+
 const MARKETPLACES: { value: Marketplace; label: string }[] = [
   { value: 'shopify', label: 'Shopify' },
   { value: 'amazon', label: 'Amazon' },
   { value: 'etsy', label: 'Etsy' },
   { value: 'daraz', label: 'Daraz' },
-];
-
-// One merged "Image Studio" control. Each option is prefixed so a single Run button can
-// dispatch to either the touch-up (enhance) or the generate-a-new-shot (scene) workflow.
-const ENHANCEMENT_OPTIONS: { value: ImageEnhancementOperation; label: string }[] = [
-  { value: 'background_removal', label: 'Background removal' },
-  { value: 'image_cleanup', label: 'Image cleanup' },
-  { value: 'image_optimization', label: 'Image optimization' },
+  { value: 'woocommerce', label: 'WooCommerce' },
+  { value: 'ebay', label: 'eBay' },
+  { value: 'generic_store', label: 'Generic Store' },
 ];
 
 const SCENE_OPTIONS: { value: ScenePreset; label: string }[] = [
@@ -72,14 +82,35 @@ const SCENE_OPTIONS: { value: ScenePreset; label: string }[] = [
   { value: 'lifestyle_home_setup', label: 'Lifestyle home setup' },
   { value: 'social_media_banner', label: 'Social media banner' },
   { value: 'marketplace_hero_image', label: 'Marketplace hero image' },
-  { value: 'custom_prompt', label: 'Custom prompt' },
 ];
+
+const SCENE_LABELS: Record<ScenePreset, string> = {
+  studio_white_background: 'Studio white background',
+  luxury_product_shot: 'Luxury product shot',
+  wooden_table_setup: 'Wooden table setup',
+  minimal_ecommerce_background: 'Minimal ecommerce background',
+  lifestyle_home_setup: 'Lifestyle home setup',
+  social_media_banner: 'Social media banner',
+  marketplace_hero_image: 'Marketplace hero image',
+  custom_prompt: 'Custom prompt',
+};
+
+const MARKETPLACE_LABELS: Record<Marketplace, string> = {
+  shopify: 'Shopify',
+  amazon: 'Amazon',
+  etsy: 'Etsy',
+  daraz: 'Daraz',
+  woocommerce: 'WooCommerce',
+  ebay: 'eBay',
+  generic_store: 'Generic Store',
+};
 
 interface ListingDetailViewProps {
   listing: ListingDetail;
 }
 
 export function ListingDetailView({ listing }: ListingDetailViewProps) {
+  const [activeTab, setActiveTab] = useState<ResultTab>('overview');
   const [activeListing, setActiveListing] = useState<GeneratedListing>(listing.listing);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -88,12 +119,13 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   const [isSeoAnalyzing, setIsSeoAnalyzing] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [isMarketplaceOptimizing, setIsMarketplaceOptimizing] = useState(false);
-  const [isImageEnhancing, setIsImageEnhancing] = useState(false);
   const [selectedMarketplace, setSelectedMarketplace] = useState<Marketplace>('shopify');
-  // Composite "<kind>:<value>" so a single dropdown + Run button drives both image workflows.
-  const [imageStudioSelection, setImageStudioSelection] = useState('enhance:background_removal');
-  const [customScenePrompt, setCustomScenePrompt] = useState('');
+  const [isMarketplaceOptimizing, setIsMarketplaceOptimizing] = useState(false);
+  const [selectedScenePreset, setSelectedScenePreset] =
+    useState<ScenePreset>('lifestyle_home_setup');
+  const [isSceneGenerating, setIsSceneGenerating] = useState(false);
+  const [deletingGeneratedImageId, setDeletingGeneratedImageId] = useState<string | null>(null);
+  const [regeneratingImageId, setRegeneratingImageId] = useState<string | null>(null);
   const [acceptingVersionId, setAcceptingVersionId] = useState<string | null>(null);
   const [seoAnalysis, setSeoAnalysis] = useState<SeoAnalysisResult | null>(null);
   const [seoErrorMessage, setSeoErrorMessage] = useState<string | null>(null);
@@ -104,20 +136,22 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     Record<string, MarketplaceOptimizationResult>
   >({});
   const [marketplaceErrorMessage, setMarketplaceErrorMessage] = useState<string | null>(null);
-  const [enhancedImage, setEnhancedImage] = useState<EnhancedImageResult | null>(null);
-  const [imageEnhancementErrorMessage, setImageEnhancementErrorMessage] = useState<string | null>(
-    null,
-  );
-  const [isSceneGenerating, setIsSceneGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<GeneratedSceneImage | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedSceneImage[]>([]);
   const [generatedImageErrorMessage, setGeneratedImageErrorMessage] = useState<string | null>(null);
-  const [deletingGeneratedImageId, setDeletingGeneratedImageId] = useState<string | null>(null);
-  const keywords = activeListing.seoKeywords.join(', ');
-  const tags = activeListing.productTags.join(', ');
+
   const marketplaceOptimization = marketplaceOptimizationsByMarket[selectedMarketplace] ?? null;
-  const isImageBusy = isImageEnhancing || isSceneGenerating;
-  const isCustomScene = imageStudioSelection === 'scene:custom_prompt';
+  const activeKeywords = activeListing.seoKeywords.join(', ');
+  const activeTags = activeListing.productTags.join(', ');
+
+  const assetStatus = useMemo(
+    () => [
+      { label: 'Listing generated', active: true },
+      { label: 'SEO optimized', active: Boolean(seoAnalysis) },
+      { label: 'Marketplace content generated', active: Object.keys(marketplaceOptimizationsByMarket).length > 0 },
+      { label: 'Images generated', active: generatedImages.length > 0 },
+    ],
+    [generatedImages.length, marketplaceOptimizationsByMarket, seoAnalysis],
+  );
 
   useEffect(() => {
     void loadVersions();
@@ -136,16 +170,30 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     }
   }
 
-  async function copyAll() {
-    try {
-      const exportData = await getListingJsonExport(listing.id);
-      await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
-      setCopiedKey('copy-all');
-      showToast('Full listing copied.');
-      window.setTimeout(() => setCopiedKey(null), 1500);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Copy failed. Please try again.');
-    }
+  async function copyFullListing() {
+    await copyText(
+      'copy-full-listing',
+      [
+        `Title: ${activeListing.title}`,
+        `Short description: ${activeListing.shortDescription}`,
+        `Long description: ${activeListing.longDescription}`,
+        `SEO keywords: ${activeKeywords}`,
+        `Product tags: ${activeTags}`,
+      ].join('\n\n'),
+    );
+  }
+
+  async function copyMarketplaceContent(result: MarketplaceOptimizationResult) {
+    await copyText(
+      `marketplace-${result.marketplace}`,
+      [
+        `Title: ${result.optimization.optimizedTitle}`,
+        `Description: ${result.optimization.optimizedDescription}`,
+        `Bullet points:\n${result.optimization.bulletPoints.join('\n')}`,
+        `Keywords/tags: ${result.optimization.keywordsTags.join(', ')}`,
+        `Platform notes: ${result.optimization.platformNotes}`,
+      ].join('\n\n'),
+    );
   }
 
   async function downloadJson() {
@@ -237,7 +285,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
 
   async function handleMarketplaceOptimization(force = false) {
     const alreadyOptimized = Boolean(marketplaceOptimizationsByMarket[selectedMarketplace]);
-    if (force && !window.confirm('Re-optimize for this marketplace? This spends credits.')) {
+    if (force && alreadyOptimized && !window.confirm('Re-optimize for this marketplace? This spends credits.')) {
       return;
     }
 
@@ -262,50 +310,11 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     }
   }
 
-  // Single entry point for the merged Image Studio control: route to touch-up vs generate.
-  function handleImageStudioRun() {
-    const [kind, value] = imageStudioSelection.split(':');
-    if (kind === 'enhance') {
-      void handleEnhanceImage(value as ImageEnhancementOperation);
-    } else {
-      void handleGenerateImage(value as ScenePreset);
-    }
-  }
-
-  async function handleEnhanceImage(operation: ImageEnhancementOperation) {
-    setIsImageEnhancing(true);
-    setImageEnhancementErrorMessage(null);
-    try {
-      const result = await enhanceListingImage(listing.id, operation);
-      setEnhancedImage(result);
-      notifyWalletChanged();
-      showToast('Image enhancement completed.');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Image enhancement failed.';
-      setImageEnhancementErrorMessage(message);
-      showToast(message);
-    } finally {
-      setIsImageEnhancing(false);
-    }
-  }
-
-  function downloadEnhancedImage() {
-    if (!enhancedImage) {
-      return;
-    }
-    const link = document.createElement('a');
-    link.href = enhancedImage.enhancedImageUrl;
-    link.download = `${listing.id}-${enhancedImage.operation}.png`;
-    link.click();
-    showToast('Enhanced image download started.');
-  }
-
-  async function handleGenerateImage(preset: ScenePreset) {
+  async function handleGenerateImage(preset = selectedScenePreset) {
     setIsSceneGenerating(true);
     setGeneratedImageErrorMessage(null);
     try {
-      const result = await generateLifestyleScene(listing.id, preset, customScenePrompt);
-      setGeneratedImage(result);
+      const result = await generateLifestyleScene(listing.id, preset, '');
       setGeneratedImages((current) => [result, ...current]);
       notifyWalletChanged();
       showToast('Generated image saved.');
@@ -315,6 +324,23 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
       showToast(message);
     } finally {
       setIsSceneGenerating(false);
+    }
+  }
+
+  async function handleRegenerateImage(image: GeneratedSceneImage) {
+    setRegeneratingImageId(image.id);
+    setGeneratedImageErrorMessage(null);
+    try {
+      const result = await generateLifestyleScene(listing.id, image.category, image.customPrompt ?? '');
+      setGeneratedImages((current) => [result, ...current]);
+      notifyWalletChanged();
+      showToast('Image regenerated.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Image regeneration failed.';
+      setGeneratedImageErrorMessage(message);
+      showToast(message);
+    } finally {
+      setRegeneratingImageId(null);
     }
   }
 
@@ -343,7 +369,6 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     try {
       await deleteGeneratedLifestyleScene(listing.id, image.id);
       setGeneratedImages((current) => current.filter((item) => item.id !== image.id));
-      setGeneratedImage((current) => (current?.id === image.id ? null : current));
       showToast('Generated image deleted.');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Delete failed. Please try again.');
@@ -365,7 +390,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
             item.id === result.acceptedVersion.id ? result.acceptedVersion.acceptedAt : null,
         })),
       );
-      showToast('Improved version accepted.');
+      showToast('Version accepted.');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Could not accept version.');
     } finally {
@@ -386,7 +411,6 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     try {
       const gallery = await getGeneratedLifestyleScenes(listing.id);
       setGeneratedImages(gallery.images);
-      setGeneratedImage(gallery.images[0] ?? null);
     } catch {
       setGeneratedImages([]);
     }
@@ -408,650 +432,708 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     window.setTimeout(() => setToastMessage(null), 2500);
   }
 
-  return (
-    <div className="grid gap-8 lg:grid-cols-[380px_minmax(0,1fr)]">
-      <section className="grid content-start gap-5">
-        <img
-          alt={listing.image.originalFilename}
-          className="aspect-square w-full rounded-lg border border-white/10 object-cover shadow-[0_24px_90px_-60px_rgba(0,0,0,1)]"
-          src={listing.image.imageUrl}
-        />
-        <div className="glass-panel p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-white">Product analysis</h2>
-            <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-semibold capitalize text-muted-foreground">
-              {listing.status}
-            </span>
-          </div>
-          <dl className="mt-4 grid gap-2 text-sm">
-            {[
-              ['Category', listing.analysis.category],
-              ['Product type', listing.analysis.productType],
-              ['Color', listing.analysis.color],
-              ['Material', listing.analysis.material],
-              ['Style', listing.analysis.style],
-              ['Visible text/brand', listing.analysis.visibleTextBrand],
-              ['Target audience', listing.analysis.targetAudience],
-            ].map(([label, value]) => (
-              <div key={label} className="grid grid-cols-[130px_minmax(0,1fr)] gap-3">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="min-w-0 break-words font-medium text-white">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </section>
+  function showMarketingUnavailable() {
+    showToast('Marketing copy generation is not available yet.');
+  }
 
-      <section className="grid gap-4">
-        {toastMessage ? (
-          <div className="glass-panel fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 text-sm text-white">
-            {toastMessage}
-          </div>
+  return (
+    <div className="grid gap-6">
+      {toastMessage ? (
+        <div className="glass-panel fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 text-sm text-white">
+          {toastMessage}
+        </div>
+      ) : null}
+
+      <ListingWorkspaceHeader
+        title={activeListing.title}
+        status={listing.status}
+        isExporting={isJsonExporting}
+        onExport={downloadJson}
+      />
+
+      <ResultTabs activeTab={activeTab} onChange={setActiveTab} />
+
+      <motion.div
+        key={activeTab}
+        animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 8 }}
+        transition={{ duration: 0.22 }}
+      >
+        {activeTab === 'overview' ? (
+          <OverviewPanel
+            listing={listing}
+            activeListing={activeListing}
+            seoAnalysis={seoAnalysis}
+            assetStatus={assetStatus}
+          />
         ) : null}
 
-        <div className="glass-panel grid gap-5 p-4">
-          <ToolbarStep step={1} label="Copy & export">
-            <Button type="button" onClick={copyAll}>
-              <Clipboard className="mr-2 size-4" aria-hidden="true" />
-              {copiedKey === 'copy-all' ? 'Copied All' : 'Copy All'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={downloadJson} disabled={isJsonExporting}>
-              <Download className="mr-2 size-4" aria-hidden="true" />
-              {isJsonExporting ? 'Downloading' : 'JSON'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={downloadShopifyCsv}
-              disabled={isShopifyExporting}
-            >
-              <Download className="mr-2 size-4" aria-hidden="true" />
-              {isShopifyExporting ? 'Downloading' : 'Shopify CSV'}
-            </Button>
-          </ToolbarStep>
+        {activeTab === 'listing' ? (
+          <ListingPanel
+            listing={activeListing}
+            copiedKey={copiedKey}
+            isImproving={isImproving}
+            isRegenerating={isRegenerating}
+            improvementErrorMessage={improvementErrorMessage}
+            seoAnalysis={seoAnalysis}
+            seoErrorMessage={seoErrorMessage}
+            isSeoAnalyzing={isSeoAnalyzing}
+            onCopyFull={copyFullListing}
+            onCopyField={copyText}
+            onImprove={handleImproveListing}
+            onRegenerate={handleRegenerateListing}
+            onAnalyzeSeo={handleAnalyzeSeo}
+          />
+        ) : null}
 
-          <ToolbarStep step={2} label="SEO score">
-            <Button type="button" onClick={handleAnalyzeSeo} disabled={isSeoAnalyzing}>
-              <SearchCheck className="mr-2 size-4" aria-hidden="true" />
-              {isSeoAnalyzing ? 'Analyzing SEO' : 'Analyze SEO'}
-            </Button>
-          </ToolbarStep>
+        {activeTab === 'images' ? (
+          <ImageGallery
+            images={generatedImages}
+            selectedScenePreset={selectedScenePreset}
+            isGenerating={isSceneGenerating}
+            errorMessage={generatedImageErrorMessage}
+            deletingImageId={deletingGeneratedImageId}
+            regeneratingImageId={regeneratingImageId}
+            onPresetChange={setSelectedScenePreset}
+            onGenerate={() => void handleGenerateImage()}
+            onDownload={downloadGeneratedImage}
+            onDelete={deleteGeneratedImage}
+            onRegenerate={handleRegenerateImage}
+          />
+        ) : null}
 
-          <ToolbarStep step={3} label="Refine copy">
-            <Button type="button" onClick={handleImproveListing} disabled={isImproving}>
-              <Sparkles className="mr-2 size-4" aria-hidden="true" />
-              {isImproving ? 'Improving' : 'Improve with AI'}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleRegenerateListing}
-              disabled={isRegenerating}
-            >
-              <RefreshCw className="mr-2 size-4" aria-hidden="true" />
-              {isRegenerating ? 'Regenerating' : 'Regenerate'}
-            </Button>
-          </ToolbarStep>
+        {activeTab === 'marketplace' ? (
+          <MarketplacePanel
+            selectedMarketplace={selectedMarketplace}
+            optimization={marketplaceOptimization}
+            errorMessage={marketplaceErrorMessage}
+            isOptimizing={isMarketplaceOptimizing}
+            copiedKey={copiedKey}
+            isJsonExporting={isJsonExporting}
+            isShopifyExporting={isShopifyExporting}
+            onMarketplaceChange={setSelectedMarketplace}
+            onOptimize={() => void handleMarketplaceOptimization(false)}
+            onRefresh={() => void handleMarketplaceOptimization(true)}
+            onCopy={copyMarketplaceContent}
+            onExportJson={downloadJson}
+            onExportShopify={downloadShopifyCsv}
+          />
+        ) : null}
 
-          <ToolbarStep step={4} label="Image studio">
-            <div className="flex w-full flex-wrap items-center gap-2">
-              <select
-                aria-label="Image studio action"
-                className="field-surface h-10 min-w-[220px]"
-                value={imageStudioSelection}
-                onChange={(event) => setImageStudioSelection(event.target.value)}
-                disabled={isImageBusy}
-              >
-                <optgroup label="Touch up original">
-                  {ENHANCEMENT_OPTIONS.map((option) => (
-                    <option key={option.value} value={`enhance:${option.value}`}>
-                      {option.label}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Generate new shot">
-                  {SCENE_OPTIONS.map((option) => (
-                    <option key={option.value} value={`scene:${option.value}`}>
-                      {option.label}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-              {isCustomScene ? (
-                <input
-                  aria-label="Custom image generation prompt"
-                  className="field-surface h-10 min-w-0 flex-1"
-                  value={customScenePrompt}
-                  onChange={(event) => setCustomScenePrompt(event.target.value)}
-                  placeholder="Describe the generated product scene"
-                  disabled={isImageBusy}
-                />
-              ) : null}
-              <Button
-                type="button"
-                onClick={handleImageStudioRun}
-                disabled={isImageBusy || (isCustomScene && !customScenePrompt.trim())}
-              >
-                <ImageIcon className="mr-2 size-4" aria-hidden="true" />
-                {isImageBusy ? 'Working' : 'Run'}
-              </Button>
-            </div>
-          </ToolbarStep>
+        {activeTab === 'marketing' ? (
+          <MarketingPanel onGenerate={showMarketingUnavailable} />
+        ) : null}
 
-          <ToolbarStep step={5} label="Marketplace">
-            <div className="flex w-full flex-wrap items-center gap-2">
-              {MARKETPLACES.map((market) => {
-                const optimized = Boolean(marketplaceOptimizationsByMarket[market.value]);
-                const isSelected = selectedMarketplace === market.value;
-                return (
-                  <button
-                    key={market.value}
-                    type="button"
-                    onClick={() => setSelectedMarketplace(market.value)}
-                    aria-pressed={isSelected}
-                    className={cn(
-                      'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition',
-                      isSelected
-                        ? 'border-primary/60 bg-primary/20 text-white'
-                        : 'border-white/10 bg-white/[0.03] text-muted-foreground hover:border-primary/35 hover:text-white',
-                    )}
-                  >
-                    {optimized ? <Check className="size-3 text-primary" aria-hidden="true" /> : null}
-                    {market.label}
-                  </button>
-                );
-              })}
-              {marketplaceOptimization ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => handleMarketplaceOptimization(true)}
-                  disabled={isMarketplaceOptimizing}
-                >
-                  <RefreshCw className="mr-2 size-4" aria-hidden="true" />
-                  {isMarketplaceOptimizing ? 'Optimizing' : 'Re-optimize'}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  onClick={() => handleMarketplaceOptimization(false)}
-                  disabled={isMarketplaceOptimizing}
-                >
-                  <ShoppingBag className="mr-2 size-4" aria-hidden="true" />
-                  {isMarketplaceOptimizing ? 'Optimizing' : 'Optimize'}
-                </Button>
-              )}
-            </div>
-          </ToolbarStep>
-        </div>
-
-        {seoErrorMessage ? <ErrorMessage message={seoErrorMessage} /> : null}
-
-        {seoAnalysis ? <SeoAnalysisPanel result={seoAnalysis} /> : null}
-
-        {improvementErrorMessage ? <ErrorMessage message={improvementErrorMessage} /> : null}
-
-        {improvement ? (
-          <BeforeAfterComparison
+        {activeTab === 'history' ? (
+          <HistoryPanel
+            originalListing={listing.listing}
+            activeListing={activeListing}
             improvement={improvement}
+            versions={versions}
             acceptingVersionId={acceptingVersionId}
             onAccept={handleAcceptVersion}
           />
         ) : null}
+      </motion.div>
+    </div>
+  );
+}
 
-        {marketplaceErrorMessage ? <ErrorMessage message={marketplaceErrorMessage} /> : null}
+function ListingWorkspaceHeader({
+  title,
+  status,
+  isExporting,
+  onExport,
+}: {
+  title: string;
+  status: string;
+  isExporting: boolean;
+  onExport: () => Promise<void>;
+}) {
+  return (
+    <section className="glass-panel p-4 sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button asChild variant="secondary" className="h-9 px-3">
+              <Link href="/dashboard">
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                Back to Listings
+              </Link>
+            </Button>
+            <span className="rounded-full border border-primary/35 bg-primary/15 px-3 py-1 text-xs font-semibold capitalize text-white">
+              {status}
+            </span>
+          </div>
+          <h1 className="mt-4 max-w-4xl text-2xl font-semibold leading-tight text-white sm:text-3xl">
+            {title}
+          </h1>
+        </div>
+        <Button type="button" onClick={() => void onExport()} disabled={isExporting}>
+          {isExporting ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Download className="size-4" aria-hidden="true" />
+          )}
+          {isExporting ? 'Exporting' : 'Export'}
+        </Button>
+      </div>
+    </section>
+  );
+}
 
-        {marketplaceOptimization ? (
-          <MarketplaceOptimizationPanel
-            result={marketplaceOptimization}
-            copiedKey={copiedKey}
-            onCopy={copyText}
-          />
-        ) : null}
+function ResultTabs({
+  activeTab,
+  onChange,
+}: {
+  activeTab: ResultTab;
+  onChange: (tab: ResultTab) => void;
+}) {
+  return (
+    <div className="glass-panel overflow-x-auto p-2">
+      <div className="flex min-w-max gap-1">
+        {RESULT_TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.value;
+          return (
+            <button
+              key={tab.value}
+              className={cn(
+                'inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold transition',
+                isActive
+                  ? 'bg-primary text-white shadow-[0_16px_44px_-24px_hsl(var(--primary))]'
+                  : 'text-muted-foreground hover:bg-white/[0.06] hover:text-white',
+              )}
+              type="button"
+              onClick={() => onChange(tab.value)}
+            >
+              <Icon className="size-4" aria-hidden="true" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-        {imageEnhancementErrorMessage ? (
-          <ErrorMessage message={imageEnhancementErrorMessage} />
-        ) : null}
+function OverviewPanel({
+  listing,
+  activeListing,
+  seoAnalysis,
+  assetStatus,
+}: {
+  listing: ListingDetail;
+  activeListing: GeneratedListing;
+  seoAnalysis: SeoAnalysisResult | null;
+  assetStatus: Array<{ label: string; active: boolean }>;
+}) {
+  const attributes = [
+    ['Category', listing.analysis.category],
+    ['Product type', listing.analysis.productType],
+    ['Color', listing.analysis.color],
+    ['Material', listing.analysis.material],
+    ['Style', listing.analysis.style],
+    ['Visible text/brand', listing.analysis.visibleTextBrand],
+    ['Target audience', listing.analysis.targetAudience],
+  ];
 
-        {isImageEnhancing ? <ImageProcessingProgress /> : null}
+  return (
+    <div className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <img
+        alt={listing.image.originalFilename}
+        className="aspect-square w-full rounded-lg border border-white/10 object-cover shadow-[0_24px_90px_-60px_rgba(0,0,0,1)]"
+        src={listing.image.imageUrl}
+      />
+      <div className="grid gap-5">
+        <section className="premium-card p-5">
+          <p className="eyebrow">Product Analysis</p>
+          <dl className="mt-5 grid gap-3 sm:grid-cols-2">
+            {attributes.map(([label, value]) => (
+              <div key={label} className="rounded-md border border-white/10 bg-background/45 p-3">
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+                <dd className="mt-1 min-w-0 break-words text-sm font-medium text-white">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
 
-        {enhancedImage ? (
-          <ImageEnhancementPanel
-            originalImageUrl={listing.image.imageUrl}
-            enhancedImage={enhancedImage}
-            onDownload={downloadEnhancedImage}
-          />
-        ) : null}
+        <div className="grid gap-5 lg:grid-cols-2">
+          <section className="premium-card p-5">
+            <p className="eyebrow">SEO Summary</p>
+            {seoAnalysis ? (
+              <div className="mt-5 grid gap-4">
+                <ScoreMeter label="SEO score" value={seoAnalysis.analysis.seoScore} />
+                <ScoreMeter label="Readability" value={seoAnalysis.analysis.readabilityScore} />
+              </div>
+            ) : (
+              <EmptyState
+                icon={SearchCheck}
+                title="No SEO score yet"
+                body="Run SEO analysis from the Listing tab to see quality scores here."
+              />
+            )}
+          </section>
 
-        {generatedImageErrorMessage ? <ErrorMessage message={generatedImageErrorMessage} /> : null}
+          <section className="premium-card p-5">
+            <p className="eyebrow">Asset Status</p>
+            <div className="mt-5 grid gap-3">
+              {assetStatus.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-background/45 px-3 py-2"
+                >
+                  <span className="text-sm text-white">{item.label}</span>
+                  <span
+                    className={cn(
+                      'rounded-full px-2.5 py-1 text-xs font-semibold',
+                      item.active
+                        ? 'bg-primary/20 text-white'
+                        : 'bg-white/[0.05] text-muted-foreground',
+                    )}
+                  >
+                    {item.active ? 'Ready' : 'Pending'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
 
-        {isSceneGenerating ? <ImageProcessingProgress label="Generating image" /> : null}
+        <section className="premium-card p-5">
+          <p className="eyebrow">Live Listing</p>
+          <h2 className="mt-3 text-xl font-semibold text-white">{activeListing.title}</h2>
+          <p className="mt-3 text-sm leading-7 text-muted-foreground">
+            {activeListing.shortDescription}
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
 
-        {generatedImage ? (
-          <GeneratedImagePanel
-            image={generatedImage}
-            onDownload={downloadGeneratedImage}
-            onDelete={deleteGeneratedImage}
-            isDeleting={deletingGeneratedImageId === generatedImage.id}
-          />
-        ) : null}
+function ListingPanel({
+  listing,
+  copiedKey,
+  isImproving,
+  isRegenerating,
+  improvementErrorMessage,
+  seoAnalysis,
+  seoErrorMessage,
+  isSeoAnalyzing,
+  onCopyFull,
+  onCopyField,
+  onImprove,
+  onRegenerate,
+  onAnalyzeSeo,
+}: {
+  listing: GeneratedListing;
+  copiedKey: string | null;
+  isImproving: boolean;
+  isRegenerating: boolean;
+  improvementErrorMessage: string | null;
+  seoAnalysis: SeoAnalysisResult | null;
+  seoErrorMessage: string | null;
+  isSeoAnalyzing: boolean;
+  onCopyFull: () => Promise<void>;
+  onCopyField: (key: string, value: string) => Promise<void>;
+  onImprove: () => Promise<void>;
+  onRegenerate: () => Promise<void>;
+  onAnalyzeSeo: () => Promise<void>;
+}) {
+  return (
+    <div className="grid gap-5">
+      <section className="glass-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="eyebrow">Generated Listing</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Review the live generated content and refine only when needed.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={() => void onCopyFull()}>
+              <Clipboard className="size-4" aria-hidden="true" />
+              {copiedKey === 'copy-full-listing' ? 'Copied' : 'Copy full listing'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void onImprove()} disabled={isImproving}>
+              {isImproving ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              {isImproving ? 'Improving' : 'Improve'}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void onRegenerate()}
+              disabled={isRegenerating}
+            >
+              {isRegenerating ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+              {isRegenerating ? 'Regenerating' : 'Regenerate'}
+            </Button>
+          </div>
+        </div>
+      </section>
 
-        <GeneratedImageGallery
-          images={generatedImages}
-          deletingGeneratedImageId={deletingGeneratedImageId}
-          onDownload={downloadGeneratedImage}
-          onDelete={deleteGeneratedImage}
-        />
+      {improvementErrorMessage ? <ErrorMessage message={improvementErrorMessage} /> : null}
 
-        <VersionHistory
-          versions={versions}
-          acceptingVersionId={acceptingVersionId}
-          onAccept={handleAcceptVersion}
-        />
-
-        <CopyField
+      <div className="grid gap-4">
+        <ContentCard
           label="Title"
-          value={activeListing.title}
+          value={listing.title}
           copyKey="title"
           copiedKey={copiedKey}
-          onCopy={copyText}
+          onCopy={onCopyField}
         />
-        <CopyField
+        <ContentCard
           label="Short description"
-          value={activeListing.shortDescription}
+          value={listing.shortDescription}
           copyKey="short-description"
           copiedKey={copiedKey}
-          onCopy={copyText}
+          onCopy={onCopyField}
         />
-        <CopyField
+        <ContentCard
           label="Long description"
-          value={activeListing.longDescription}
+          value={listing.longDescription}
           copyKey="long-description"
           copiedKey={copiedKey}
-          onCopy={copyText}
+          onCopy={onCopyField}
         />
-        <CopyField
-          label="SEO keywords"
-          value={keywords}
+        <TagSection
+          title="SEO keywords"
+          values={listing.seoKeywords}
           copyKey="seo-keywords"
           copiedKey={copiedKey}
-          onCopy={copyText}
+          onCopy={onCopyField}
         />
-        <CopyField
-          label="Product tags"
-          value={tags}
+        <TagSection
+          title="Product tags"
+          values={listing.productTags}
           copyKey="product-tags"
           copiedKey={copiedKey}
-          onCopy={copyText}
+          onCopy={onCopyField}
         />
+      </div>
+
+      <section className="premium-card p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-white">SEO quality</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Run this when you want a score and improvement guidance.
+            </p>
+          </div>
+          <Button type="button" variant="secondary" onClick={() => void onAnalyzeSeo()} disabled={isSeoAnalyzing}>
+            {isSeoAnalyzing ? <Loader2 className="size-4 animate-spin" /> : <SearchCheck className="size-4" />}
+            {isSeoAnalyzing ? 'Analyzing' : 'Analyze SEO'}
+          </Button>
+        </div>
+        {seoErrorMessage ? <div className="mt-4"><ErrorMessage message={seoErrorMessage} /></div> : null}
+        {seoAnalysis ? <SeoAnalysisSummary result={seoAnalysis} /> : null}
       </section>
     </div>
   );
 }
 
-function ToolbarStep({
-  step,
-  label,
-  children,
+function ImageGallery({
+  images,
+  selectedScenePreset,
+  isGenerating,
+  errorMessage,
+  deletingImageId,
+  regeneratingImageId,
+  onPresetChange,
+  onGenerate,
+  onDownload,
+  onDelete,
+  onRegenerate,
 }: {
-  step: number;
-  label: string;
-  children: ReactNode;
+  images: GeneratedSceneImage[];
+  selectedScenePreset: ScenePreset;
+  isGenerating: boolean;
+  errorMessage: string | null;
+  deletingImageId: string | null;
+  regeneratingImageId: string | null;
+  onPresetChange: (preset: ScenePreset) => void;
+  onGenerate: () => void;
+  onDownload: (image: GeneratedSceneImage) => Promise<void>;
+  onDelete: (image: GeneratedSceneImage) => Promise<void>;
+  onRegenerate: (image: GeneratedSceneImage) => Promise<void>;
 }) {
   return (
-    <div className="flex flex-col gap-2 border-t border-white/10 pt-4 first:border-t-0 first:pt-0 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-2 sm:w-44 sm:shrink-0">
-        <span className="flex size-5 items-center justify-center rounded-full border border-primary/50 text-[11px] font-semibold text-white">
-          {step}
-        </span>
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {label}
-        </span>
-      </div>
-      <div className="flex flex-1 flex-wrap items-center gap-2">{children}</div>
-    </div>
-  );
-}
-
-function ImageProcessingProgress({ label = 'Image processing' }: { label?: string }) {
-  return (
-    <section className="glass-panel p-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-white">{label}</h2>
-        <span className="text-sm text-muted-foreground">In progress</span>
-      </div>
-      <div className="mt-4 h-2 overflow-hidden rounded bg-muted">
-        <div className="h-full w-2/3 animate-pulse bg-gradient-to-r from-primary to-accent" />
-      </div>
-      <ol className="mt-4 grid gap-2 text-sm text-muted-foreground sm:grid-cols-3">
-        <li className="rounded bg-white/[0.06] px-3 py-2">Preparing image</li>
-        <li className="rounded bg-white/[0.06] px-3 py-2">Processing image</li>
-        <li className="rounded bg-white/[0.06] px-3 py-2">Saving result</li>
-      </ol>
-    </section>
-  );
-}
-
-const sceneCategoryLabels: Record<ScenePreset, string> = {
-  studio_white_background: 'Studio white background',
-  luxury_product_shot: 'Luxury product shot',
-  wooden_table_setup: 'Wooden table setup',
-  minimal_ecommerce_background: 'Minimal ecommerce background',
-  lifestyle_home_setup: 'Lifestyle home setup',
-  social_media_banner: 'Social media banner',
-  marketplace_hero_image: 'Marketplace hero image',
-  custom_prompt: 'Custom prompt',
-};
-
-interface GeneratedImagePanelProps {
-  image: GeneratedSceneImage;
-  onDownload: (image: GeneratedSceneImage) => Promise<void>;
-  onDelete: (image: GeneratedSceneImage) => Promise<void>;
-  isDeleting: boolean;
-}
-
-function GeneratedImagePanel({
-  image,
-  onDownload,
-  onDelete,
-  isDeleting,
-}: GeneratedImagePanelProps) {
-  return (
-    <section className="glass-panel p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-white">Generated image</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {sceneCategoryLabels[image.category]} via {image.provider}
-          </p>
+    <div className="grid gap-5">
+      <section className="glass-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="eyebrow">Image Gallery</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Generate and manage product scene images without crowding the canvas.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              aria-label="Image preset"
+              className="field-surface h-10 min-w-56"
+              value={selectedScenePreset}
+              onChange={(event) => onPresetChange(event.target.value as ScenePreset)}
+              disabled={isGenerating}
+            >
+              {SCENE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <Button type="button" onClick={onGenerate} disabled={isGenerating}>
+              {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <ImageIcon className="size-4" />}
+              {isGenerating ? 'Generating' : 'Generate image'}
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="secondary" onClick={() => onDownload(image)}>
-            <Download className="mr-2 size-4" aria-hidden="true" />
-            Download
-          </Button>
-          <Button
-            type="button"
-            variant="danger"
-            onClick={() => onDelete(image)}
-            disabled={isDeleting}
-          >
-            <Trash2 className="mr-2 size-4" aria-hidden="true" />
-            {isDeleting ? 'Deleting' : 'Delete'}
-          </Button>
-        </div>
-      </div>
-      <img
-        alt={`${sceneCategoryLabels[image.category]} generated product image`}
-        className="mt-4 aspect-square w-full rounded-lg border border-white/10 object-cover"
-        src={image.generatedImageUrl}
-      />
-    </section>
-  );
-}
+      </section>
 
-interface GeneratedImageGalleryProps {
-  images: GeneratedSceneImage[];
-  deletingGeneratedImageId: string | null;
-  onDownload: (image: GeneratedSceneImage) => Promise<void>;
-  onDelete: (image: GeneratedSceneImage) => Promise<void>;
-}
+      {errorMessage ? <ErrorMessage message={errorMessage} /> : null}
 
-function GeneratedImageGallery({
-  images,
-  deletingGeneratedImageId,
-  onDownload,
-  onDelete,
-}: GeneratedImageGalleryProps) {
-  return (
-    <section className="glass-panel p-4">
-      <h2 className="text-base font-semibold text-white">Generated images</h2>
-      <div className="mt-4 columns-1 gap-3 sm:columns-2 xl:columns-3">
-        {images.length > 0 ? (
-          images.map((image) => (
-            <div
+      {images.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {images.map((image) => (
+            <article
               key={image.id}
-              className="group relative mb-3 break-inside-avoid overflow-hidden rounded-lg border border-white/10 bg-secondary/70"
+              className="group relative overflow-hidden rounded-lg border border-white/10 bg-secondary/70"
             >
               <img
-                alt={`${sceneCategoryLabels[image.category]} preview`}
-                className="w-full object-cover transition duration-500 group-hover:scale-105"
+                alt={`${SCENE_LABELS[image.category]} preview`}
+                className="aspect-square w-full object-cover transition duration-500 group-hover:scale-105"
                 src={image.generatedImageUrl}
               />
-              <div className="absolute inset-x-0 bottom-0 translate-y-2 bg-gradient-to-t from-black/85 to-transparent p-3 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
-                <p className="text-sm font-semibold text-white">
-                  {sceneCategoryLabels[image.category]}
-                </p>
-                <p className="text-xs text-white/70">
-                  {new Date(image.createdAt).toLocaleDateString()}
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <Button
-                    className="h-8 px-3"
-                    type="button"
-                    variant="secondary"
-                    onClick={() => onDownload(image)}
-                  >
-                    <Download className="size-4" aria-hidden="true" />
-                    Download
-                  </Button>
-                  <Button
-                    className="h-8 px-3"
-                    type="button"
-                    variant="danger"
-                    onClick={() => onDelete(image)}
-                    disabled={deletingGeneratedImageId === image.id}
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                    {deletingGeneratedImageId === image.id ? 'Deleting' : 'Delete'}
-                  </Button>
-                </div>
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent p-4">
+                <p className="text-sm font-semibold text-white">{SCENE_LABELS[image.category]}</p>
+                <p className="mt-1 text-xs text-white/70">{formatDate(image.createdAt)}</p>
               </div>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-muted-foreground">No generated images yet.</p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-interface ImageEnhancementPanelProps {
-  originalImageUrl: string;
-  enhancedImage: EnhancedImageResult;
-  onDownload: () => void;
-}
-
-function ImageEnhancementPanel({
-  originalImageUrl,
-  enhancedImage,
-  onDownload,
-}: ImageEnhancementPanelProps) {
-  const operationLabels: Record<ImageEnhancementOperation, string> = {
-    background_removal: 'Background removal',
-    image_cleanup: 'Image cleanup',
-    image_optimization: 'Image optimization',
-  };
-
-  return (
-    <section className="glass-panel p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-white">Image enhancement</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {operationLabels[enhancedImage.operation]} via {enhancedImage.providerName}
-          </p>
+              <div className="absolute inset-0 flex items-end justify-end gap-2 bg-black/35 p-3 opacity-0 transition group-hover:opacity-100">
+                <IconAction label="Download" onClick={() => void onDownload(image)}>
+                  <Download className="size-4" />
+                </IconAction>
+                <IconAction
+                  label="Regenerate"
+                  disabled={regeneratingImageId === image.id}
+                  onClick={() => void onRegenerate(image)}
+                >
+                  {regeneratingImageId === image.id ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
+                </IconAction>
+                <IconAction
+                  label="Delete"
+                  disabled={deletingImageId === image.id}
+                  onClick={() => void onDelete(image)}
+                >
+                  {deletingImageId === image.id ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
+                </IconAction>
+              </div>
+            </article>
+          ))}
         </div>
-        <Button type="button" variant="secondary" onClick={onDownload}>
-          <Download className="mr-2 size-4" aria-hidden="true" />
-          Download enhanced image
-        </Button>
-      </div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <ImageComparisonFrame label="Before" imageUrl={originalImageUrl} />
-        <ImageComparisonFrame label="After" imageUrl={enhancedImage.enhancedImageUrl} />
-      </div>
-    </section>
-  );
-}
-
-function ImageComparisonFrame({ label, imageUrl }: { label: string; imageUrl: string }) {
-  return (
-    <div>
-      <h3 className="text-sm font-medium">{label}</h3>
-      <img
-        alt={`${label} product image`}
-        className="mt-2 aspect-square w-full rounded-lg border border-white/10 object-cover"
-        src={imageUrl}
-      />
+      ) : (
+        <EmptyState
+          icon={ImageIcon}
+          title="No generated images yet"
+          body="Choose a preset and generate a lifestyle image for this product."
+          action={<Button type="button" onClick={onGenerate}>Generate image</Button>}
+        />
+      )}
     </div>
   );
 }
 
-interface MarketplaceOptimizationPanelProps {
-  result: MarketplaceOptimizationResult;
-  copiedKey: string | null;
-  onCopy: (key: string, value: string) => Promise<void>;
-}
-
-function MarketplaceOptimizationPanel({
-  result,
+function MarketplacePanel({
+  selectedMarketplace,
+  optimization,
+  errorMessage,
+  isOptimizing,
   copiedKey,
+  isJsonExporting,
+  isShopifyExporting,
+  onMarketplaceChange,
+  onOptimize,
+  onRefresh,
   onCopy,
-}: MarketplaceOptimizationPanelProps) {
-  const marketplaceLabels: Record<Marketplace, string> = {
-    shopify: 'Shopify',
-    amazon: 'Amazon',
-    etsy: 'Etsy',
-    daraz: 'Daraz',
-  };
-  const marketplaceLabel = marketplaceLabels[result.marketplace];
-  const bullets = result.optimization.bulletPoints.join('\n');
-  const keywords = result.optimization.keywordsTags.join(', ');
-
+  onExportJson,
+  onExportShopify,
+}: {
+  selectedMarketplace: Marketplace;
+  optimization: MarketplaceOptimizationResult | null;
+  errorMessage: string | null;
+  isOptimizing: boolean;
+  copiedKey: string | null;
+  isJsonExporting: boolean;
+  isShopifyExporting: boolean;
+  onMarketplaceChange: (marketplace: Marketplace) => void;
+  onOptimize: () => void;
+  onRefresh: () => void;
+  onCopy: (result: MarketplaceOptimizationResult) => Promise<void>;
+  onExportJson: () => Promise<void>;
+  onExportShopify: () => Promise<void>;
+}) {
   return (
-    <section className="glass-panel p-4">
-      <h2 className="text-base font-semibold text-white">{marketplaceLabel} optimized output</h2>
-      <div className="mt-4 grid gap-4">
-        <MarketplaceCopySection
-          label="Optimized title"
-          value={result.optimization.optimizedTitle}
-          copyKey="marketplace-title"
-          copiedKey={copiedKey}
-          onCopy={onCopy}
-        />
-        <MarketplaceCopySection
-          label="Optimized description"
-          value={result.optimization.optimizedDescription}
-          copyKey="marketplace-description"
-          copiedKey={copiedKey}
-          onCopy={onCopy}
-        />
-        <MarketplaceCopySection
-          label="Bullet points"
-          value={bullets}
-          copyKey="marketplace-bullets"
-          copiedKey={copiedKey}
-          onCopy={onCopy}
-        />
-        <MarketplaceCopySection
-          label="Keywords / tags"
-          value={keywords}
-          copyKey="marketplace-keywords"
-          copiedKey={copiedKey}
-          onCopy={onCopy}
-        />
-        <MarketplaceCopySection
-          label="Platform notes"
-          value={result.optimization.platformNotes}
-          copyKey="marketplace-notes"
-          copiedKey={copiedKey}
-          onCopy={onCopy}
-        />
-      </div>
-    </section>
-  );
-}
+    <div className="grid gap-5">
+      <section className="glass-panel p-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_280px] sm:items-end">
+            <div>
+              <p className="eyebrow">Marketplace Content</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                {MARKETPLACE_LABELS[selectedMarketplace]} output
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Select a marketplace, generate optimized content, then copy or export it.
+              </p>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-white">
+              Marketplace
+              <select
+                aria-label="Select marketplace"
+                className="field-surface h-10"
+                value={selectedMarketplace}
+                onChange={(event) => onMarketplaceChange(event.target.value as Marketplace)}
+                disabled={isOptimizing}
+              >
+                {MARKETPLACES.map((marketplace) => (
+                  <option key={marketplace.value} value={marketplace.value}>
+                    {marketplace.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={optimization ? onRefresh : onOptimize} disabled={isOptimizing}>
+              {isOptimizing ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              {optimization ? 'Refresh content' : 'Create content'}
+            </Button>
+            {optimization ? (
+              <Button type="button" variant="secondary" onClick={() => void onCopy(optimization)}>
+                <Clipboard className="size-4" />
+                {copiedKey === `marketplace-${optimization.marketplace}` ? 'Copied' : 'Copy content'}
+              </Button>
+            ) : null}
+            <Button type="button" variant="secondary" onClick={() => void onExportJson()} disabled={isJsonExporting}>
+              <Download className="size-4" />
+              JSON
+            </Button>
+            {selectedMarketplace === 'shopify' ? (
+              <Button type="button" variant="secondary" onClick={() => void onExportShopify()} disabled={isShopifyExporting}>
+                <Download className="size-4" />
+                Shopify CSV
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
-function MarketplaceCopySection({ label, value, copyKey, copiedKey, onCopy }: CopyFieldProps) {
-  return (
-    <div className="border-t border-white/10 pt-4 first:border-t-0 first:pt-0">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-medium">{label}</h3>
-        <Button type="button" variant="secondary" onClick={() => onCopy(copyKey, value)}>
-          <Clipboard className="mr-2 size-4" aria-hidden="true" />
-          {copiedKey === copyKey ? 'Copied' : 'Copy'}
-        </Button>
-      </div>
-      <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{value}</p>
+      {errorMessage ? <ErrorMessage message={errorMessage} /> : null}
+
+      {optimization ? (
+        <section className="premium-card p-5">
+          <div className="grid gap-5">
+            <OutputBlock title="Optimized title" value={optimization.optimization.optimizedTitle} />
+            <OutputBlock
+              title="Optimized description"
+              value={optimization.optimization.optimizedDescription}
+            />
+            <OutputBlock title="Bullet points" value={optimization.optimization.bulletPoints.join('\n')} />
+            <TagList title="Keywords / tags" values={optimization.optimization.keywordsTags} />
+            <OutputBlock title="Platform notes" value={optimization.optimization.platformNotes} />
+          </div>
+        </section>
+      ) : (
+        <EmptyState
+          icon={ShoppingBag}
+          title={`No ${MARKETPLACE_LABELS[selectedMarketplace]} content yet`}
+          body="Create marketplace content to see optimized titles, descriptions, bullets, tags, and notes."
+          action={<Button type="button" onClick={onOptimize}>Create content</Button>}
+        />
+      )}
     </div>
   );
 }
 
-interface BeforeAfterComparisonProps {
-  improvement: ListingImprovementResult;
-  acceptingVersionId: string | null;
-  onAccept: (version: ListingVersion) => Promise<void>;
+function MarketingPanel({ onGenerate }: { onGenerate: () => void }) {
+  return (
+    <EmptyState
+      icon={Megaphone}
+      title="Generate marketing copy to create ads and social captions."
+      body="Facebook ads, Instagram captions, Google ads, email copy, and TikTok captions will appear here when this workflow is available."
+      action={<Button type="button" onClick={onGenerate}>Generate Marketing Copy</Button>}
+    />
+  );
 }
 
-function BeforeAfterComparison({
+function HistoryPanel({
+  originalListing,
+  activeListing,
   improvement,
+  versions,
   acceptingVersionId,
   onAccept,
-}: BeforeAfterComparisonProps) {
-  return (
-    <section className="glass-panel p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-white">Before / after comparison</h2>
-        <Button
-          type="button"
-          onClick={() => onAccept(improvement.improvedVersion)}
-          disabled={acceptingVersionId === improvement.improvedVersion.id}
-        >
-          {acceptingVersionId === improvement.improvedVersion.id
-            ? 'Accepting'
-            : 'Accept improved version'}
-        </Button>
-      </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <ListingSnapshot title="Before" listing={improvement.originalListing} />
-        <ListingSnapshot title="After" listing={improvement.improvedVersion.listing} />
-      </div>
-    </section>
-  );
-}
-
-function ListingSnapshot({ title, listing }: { title: string; listing: GeneratedListing }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
-      <h3 className="text-sm font-semibold text-white">{title}</h3>
-      <dl className="mt-3 grid gap-3 text-sm">
-        <div>
-          <dt className="text-muted-foreground">Title</dt>
-          <dd className="mt-1 font-medium text-white">{listing.title}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Short description</dt>
-          <dd className="mt-1">{listing.shortDescription}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">SEO keywords</dt>
-          <dd className="mt-1">{listing.seoKeywords.join(', ')}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Product tags</dt>
-          <dd className="mt-1">{listing.productTags.join(', ')}</dd>
-        </div>
-      </dl>
-    </div>
-  );
-}
-
-interface VersionHistoryProps {
+}: {
+  originalListing: GeneratedListing;
+  activeListing: GeneratedListing;
+  improvement: ListingImprovementResult | null;
   versions: ListingVersion[];
   acceptingVersionId: string | null;
   onAccept: (version: ListingVersion) => Promise<void>;
+}) {
+  return (
+    <div className="grid gap-5">
+      <section className="premium-card p-5">
+        <p className="eyebrow">Content History</p>
+        <div className="mt-5 grid gap-4">
+          <VersionCard
+            title="Original version"
+            detail="Initial generated listing"
+            listing={originalListing}
+            isLive={sameListing(originalListing, activeListing)}
+            createdAt={null}
+          />
+          {versions.map((version) => (
+            <VersionCard
+              key={version.id}
+              title={`Version ${version.versionNumber}`}
+              detail={VERSION_SOURCE_LABELS[version.source] ?? version.source}
+              listing={version.listing}
+              isLive={version.isAccepted}
+              createdAt={version.createdAt}
+              action={
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void onAccept(version)}
+                  disabled={version.isAccepted || acceptingVersionId === version.id}
+                >
+                  {acceptingVersionId === version.id ? 'Accepting' : version.isAccepted ? 'Live' : 'Accept'}
+                </Button>
+              }
+            />
+          ))}
+        </div>
+      </section>
+
+      {improvement ? (
+        <section className="glass-panel p-5">
+          <h2 className="text-base font-semibold text-white">Latest improvement preview</h2>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <ListingSnapshot title="Before" listing={improvement.originalListing} />
+            <ListingSnapshot title="After" listing={improvement.improvedVersion.listing} />
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
 }
 
 const VERSION_SOURCE_LABELS: Record<string, string> = {
@@ -1059,84 +1141,112 @@ const VERSION_SOURCE_LABELS: Record<string, string> = {
   regeneration: 'Regenerated',
 };
 
-function VersionHistory({ versions, acceptingVersionId, onAccept }: VersionHistoryProps) {
+function ContentCard({
+  label,
+  value,
+  copyKey,
+  copiedKey,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  copyKey: string;
+  copiedKey: string | null;
+  onCopy: (key: string, value: string) => Promise<void>;
+}) {
   return (
-    <section className="glass-panel p-4">
-      <h2 className="text-base font-semibold text-white">Version history</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Every improvement and regeneration is kept here. Accept one to make it the live copy.
-      </p>
-      <div className="mt-3 grid gap-3">
-        {versions.length > 0 ? (
-          versions.map((version) => (
-            <div
-              key={version.id}
-              className={cn(
-                'grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_auto]',
-                version.isAccepted
-                  ? 'border-primary/50 bg-primary/10'
-                  : 'border-white/10 bg-white/[0.04]',
-              )}
-            >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-white">Version {version.versionNumber}</p>
-                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {VERSION_SOURCE_LABELS[version.source] ?? version.source}
-                  </span>
-                  {version.isAccepted ? (
-                    <span className="rounded-full border border-primary/50 bg-primary/20 px-2 py-0.5 text-[11px] font-medium text-white">
-                      Live
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-1 truncate text-sm text-muted-foreground">{version.listing.title}</p>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => onAccept(version)}
-                disabled={version.isAccepted || acceptingVersionId === version.id}
-              >
-                {acceptingVersionId === version.id ? 'Accepting' : 'Accept'}
-              </Button>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-muted-foreground">No other versions yet.</p>
-        )}
+    <section className="premium-card p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-white">{label}</h2>
+        <CopyAction
+          copied={copiedKey === copyKey}
+          onClick={() => void onCopy(copyKey, value)}
+        />
       </div>
+      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-muted-foreground">
+        {value}
+      </p>
     </section>
   );
 }
 
-function SeoAnalysisPanel({ result }: { result: SeoAnalysisResult }) {
+function TagSection({
+  title,
+  values,
+  copyKey,
+  copiedKey,
+  onCopy,
+}: {
+  title: string;
+  values: string[];
+  copyKey: string;
+  copiedKey: string | null;
+  onCopy: (key: string, value: string) => Promise<void>;
+}) {
   return (
-    <section className="glass-panel p-4">
-      <h2 className="text-base font-semibold text-white">SEO quality</h2>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+    <section className="premium-card p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-white">{title}</h2>
+        <CopyAction
+          copied={copiedKey === copyKey}
+          onClick={() => void onCopy(copyKey, values.join(', '))}
+        />
+      </div>
+      <TagList title="" values={values} />
+    </section>
+  );
+}
+
+function CopyAction({ copied, onClick }: { copied: boolean; onClick: () => void }) {
+  return (
+    <button
+      className="inline-flex size-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-muted-foreground transition hover:bg-white/[0.08] hover:text-white"
+      type="button"
+      onClick={onClick}
+      title={copied ? 'Copied' : 'Copy'}
+    >
+      {copied ? <Check className="size-4" aria-hidden="true" /> : <Clipboard className="size-4" aria-hidden="true" />}
+    </button>
+  );
+}
+
+function IconAction({
+  label,
+  disabled,
+  children,
+  onClick,
+}: {
+  label: string;
+  disabled?: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="inline-flex size-9 items-center justify-center rounded-md border border-white/10 bg-black/45 text-white backdrop-blur transition hover:bg-white/15 disabled:opacity-50"
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={label}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SeoAnalysisSummary({ result }: { result: SeoAnalysisResult }) {
+  return (
+    <div className="mt-5 grid gap-5">
+      <div className="grid gap-4 sm:grid-cols-2">
         <ScoreMeter label="SEO score" value={result.analysis.seoScore} />
         <ScoreMeter label="Readability" value={result.analysis.readabilityScore} />
       </div>
-
-      <div className="mt-5 grid gap-4">
-        <FeedbackBlock
-          title="Keyword optimization"
-          value={result.analysis.keywordOptimizationFeedback}
-        />
-        <FeedbackBlock title="Title quality" value={result.analysis.titleQualityFeedback} />
-        <FeedbackBlock
-          title="Description quality"
-          value={result.analysis.descriptionQualityFeedback}
-        />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <FeedbackList title="Strengths" values={result.analysis.strengths} />
+        <FeedbackList title="Weaknesses" values={result.analysis.weaknesses} />
+        <FeedbackList title="Suggestions" values={result.analysis.improvementSuggestions} />
       </div>
-
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
-        <ListBlock title="Strengths" values={result.analysis.strengths} />
-        <ListBlock title="Weaknesses" values={result.analysis.weaknesses} />
-        <ListBlock title="Suggested improvements" values={result.analysis.improvementSuggestions} />
-      </div>
-    </section>
+    </div>
   );
 }
 
@@ -1145,34 +1255,25 @@ function ScoreMeter({ label, value }: { label: string; value: number }) {
     <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm text-muted-foreground">{label}</span>
-        <span className="text-lg font-semibold">{value}/100</span>
+        <span className="text-lg font-semibold text-white">{value}/100</span>
       </div>
       <div className="mt-3 h-2 overflow-hidden rounded bg-muted">
         <div
           className="h-full bg-gradient-to-r from-primary to-accent"
-          style={{ width: `${value}%` }}
+          style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
         />
       </div>
     </div>
   );
 }
 
-function FeedbackBlock({ title, value }: { title: string; value: string }) {
+function FeedbackList({ title, values }: { title: string; values: string[] }) {
   return (
     <div>
-      <h3 className="text-sm font-medium">{title}</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{value}</p>
-    </div>
-  );
-}
-
-function ListBlock({ title, values }: { title: string; values: string[] }) {
-  return (
-    <div>
-      <h3 className="text-sm font-medium">{title}</h3>
-      <ul className="mt-2 grid gap-2 text-sm text-muted-foreground">
+      <h3 className="text-sm font-semibold text-white">{title}</h3>
+      <ul className="mt-2 grid gap-2">
         {values.map((value) => (
-          <li key={value} className="rounded bg-white/[0.06] px-3 py-2">
+          <li key={value} className="rounded-md border border-white/10 bg-background/45 px-3 py-2 text-sm text-muted-foreground">
             {value}
           </li>
         ))}
@@ -1181,26 +1282,112 @@ function ListBlock({ title, values }: { title: string; values: string[] }) {
   );
 }
 
-interface CopyFieldProps {
-  label: string;
-  value: string;
-  copyKey: string;
-  copiedKey: string | null;
-  onCopy: (key: string, value: string) => Promise<void>;
+function OutputBlock({ title, value }: { title: string; value: string }) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-white">{title}</h3>
+      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-muted-foreground">
+        {value}
+      </p>
+    </div>
+  );
 }
 
-function CopyField({ label, value, copyKey, copiedKey, onCopy }: CopyFieldProps) {
+function TagList({ title, values }: { title: string; values: string[] }) {
   return (
-    <section className="premium-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-white">{label}</h2>
-        <Button type="button" variant="secondary" onClick={() => onCopy(copyKey, value)}>
-          <Clipboard className="mr-2 size-4" aria-hidden="true" />
-          {copiedKey === copyKey ? 'Copied' : 'Copy'}
-        </Button>
+    <div>
+      {title ? <h3 className="text-sm font-semibold text-white">{title}</h3> : null}
+      <div className={cn('flex flex-wrap gap-2', title ? 'mt-3' : 'mt-3')}>
+        {values.map((value) => (
+          <span
+            key={value}
+            className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-white/85"
+          >
+            {value}
+          </span>
+        ))}
       </div>
-      <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{value}</p>
+    </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  body,
+  action,
+}: {
+  icon: typeof Sparkles;
+  title: string;
+  body: string;
+  action?: ReactNode;
+}) {
+  return (
+    <section className="glass-panel px-6 py-12 text-center">
+      <span className="mx-auto flex size-14 items-center justify-center rounded-lg bg-primary/15 text-primary">
+        <Icon className="size-7" aria-hidden="true" />
+      </span>
+      <h2 className="mx-auto mt-5 max-w-xl text-xl font-semibold text-white">{title}</h2>
+      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">{body}</p>
+      {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </section>
+  );
+}
+
+function VersionCard({
+  title,
+  detail,
+  listing,
+  isLive,
+  createdAt,
+  action,
+}: {
+  title: string;
+  detail: string;
+  listing: GeneratedListing;
+  isLive: boolean;
+  createdAt: string | null;
+  action?: ReactNode;
+}) {
+  return (
+    <article
+      className={cn(
+        'grid gap-4 rounded-lg border p-4 lg:grid-cols-[minmax(0,1fr)_auto]',
+        isLive ? 'border-primary/50 bg-primary/10' : 'border-white/10 bg-white/[0.04]',
+      )}
+    >
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-base font-semibold text-white">{title}</h3>
+          <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-xs text-muted-foreground">
+            {detail}
+          </span>
+          {isLive ? (
+            <span className="rounded-full border border-primary/50 bg-primary/20 px-2.5 py-1 text-xs font-semibold text-white">
+              Live
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-2 truncate text-sm font-medium text-white">{listing.title}</p>
+        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+          {listing.shortDescription}
+        </p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          {createdAt ? formatDate(createdAt) : 'Original generation'}
+        </p>
+      </div>
+      {action ? <div className="flex items-start">{action}</div> : null}
+    </article>
+  );
+}
+
+function ListingSnapshot({ title, listing }: { title: string; listing: GeneratedListing }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+      <h3 className="text-sm font-semibold text-white">{title}</h3>
+      <p className="mt-3 text-sm font-medium text-white">{listing.title}</p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{listing.shortDescription}</p>
+    </div>
   );
 }
 
@@ -1209,5 +1396,20 @@ function ErrorMessage({ message }: { message: string }) {
     <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">
       {message}
     </p>
+  );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+function sameListing(first: GeneratedListing, second: GeneratedListing) {
+  return (
+    first.title === second.title &&
+    first.shortDescription === second.shortDescription &&
+    first.longDescription === second.longDescription
   );
 }

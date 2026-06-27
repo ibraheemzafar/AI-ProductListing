@@ -18,7 +18,7 @@ class MarketplaceAgent(BaseAgent[MarketplaceAgentInput, MarketplaceResult]):
             OpenAIAgentSpec(
                 name="MarketplaceAgent",
                 instructions=(
-                    "Optimize listings for Shopify, Amazon, Etsy, or Daraz by calling the "
+                    "Optimize listings for supported ecommerce marketplaces by calling the "
                     "existing marketplace optimization service tool."
                 ),
             ),

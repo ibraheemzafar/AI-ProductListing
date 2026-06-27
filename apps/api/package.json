@@ -3,9 +3,9 @@
   "private": true,
   "scripts": {
     "build": "echo API scaffold ready",
-    "dev": ".venv/bin/python -m uvicorn app.main:app --reload",
-    "lint": ".venv/bin/python -m ruff check .",
-    "test": ".venv/bin/python -m pytest",
-    "typecheck": ".venv/bin/python -m mypy ."
+    "dev": ".venv\\Scripts\\python.exe -m uvicorn app.main:app --reload",
+    "lint": ".venv\\Scripts\\python.exe -m ruff check .",
+    "test": ".venv\\Scripts\\python.exe -m pytest",
+    "typecheck": ".venv\\Scripts\\python.exe -m mypy ."
   }
 }

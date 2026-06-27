@@ -6,8 +6,6 @@ from pydantic import ValidationError
 
 from app.core.errors import AppError
 from app.features.ai_analysis.models import AiRequestLog
-from app.features.billing_meter.pricing import UsageInput
-from app.features.billing_meter.service import RequestMeter
 from app.features.ai_analysis.openai_client import (
     TokenUsage,
     VisionAnalysisClient,
@@ -16,6 +14,8 @@ from app.features.ai_analysis.openai_client import (
 from app.features.ai_analysis.prompts import PromptLoader
 from app.features.ai_analysis.repositories import AiAnalysisRepository
 from app.features.ai_analysis.schemas import ProductAnalysisResponse
+from app.features.billing_meter.pricing import UsageInput
+from app.features.billing_meter.service import RequestMeter
 from app.shared.storage.provider import StorageProvider
 
 ALLOWED_ANALYSIS_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}

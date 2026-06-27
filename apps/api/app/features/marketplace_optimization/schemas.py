@@ -5,7 +5,15 @@ from pydantic import BaseModel, Field
 
 from app.features.marketplace_optimization.models import MarketplaceOptimization
 
-Marketplace = Literal["shopify", "amazon", "etsy", "daraz"]
+Marketplace = Literal[
+    "shopify",
+    "amazon",
+    "etsy",
+    "daraz",
+    "woocommerce",
+    "ebay",
+    "generic_store",
+]
 
 
 class MarketplaceOptimizationRequest(BaseModel):

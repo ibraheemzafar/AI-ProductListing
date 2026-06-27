@@ -163,7 +163,14 @@ export interface AcceptListingVersionResult {
   activeListing: GeneratedListing;
 }
 
-export type Marketplace = 'shopify' | 'amazon' | 'etsy' | 'daraz';
+export type Marketplace =
+  | 'shopify'
+  | 'amazon'
+  | 'etsy'
+  | 'daraz'
+  | 'woocommerce'
+  | 'ebay'
+  | 'generic_store';
 
 export interface MarketplaceOptimization {
   optimizedTitle: string;

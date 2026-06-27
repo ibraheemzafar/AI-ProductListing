@@ -67,7 +67,12 @@ def client() -> Iterator[TestClient]:
 def test_register_sets_session_cookie(client: TestClient) -> None:
     response = client.post(
         "/api/v1/auth/register",
-        json={"email": "seller@example.com", "password": "password123", "name": "Test Seller"},
+        json={
+            "email": "seller@example.com",
+            "password": "password123",
+            "confirm_password": "password123",
+            "name": "Test Seller",
+        },
     )
 
     assert response.status_code == 201
@@ -78,7 +83,12 @@ def test_register_sets_session_cookie(client: TestClient) -> None:
 def test_login_sets_session_cookie(client: TestClient) -> None:
     client.post(
         "/api/v1/auth/register",
-        json={"email": "seller@example.com", "password": "password123", "name": "Test Seller"},
+        json={
+            "email": "seller@example.com",
+            "password": "password123",
+            "confirm_password": "password123",
+            "name": "Test Seller",
+        },
     )
 
     response = client.post(
@@ -93,7 +103,12 @@ def test_login_sets_session_cookie(client: TestClient) -> None:
 def test_me_returns_authenticated_user(client: TestClient) -> None:
     register_response = client.post(
         "/api/v1/auth/register",
-        json={"email": "seller@example.com", "password": "password123", "name": "Test Seller"},
+        json={
+            "email": "seller@example.com",
+            "password": "password123",
+            "confirm_password": "password123",
+            "name": "Test Seller",
+        },
     )
     client.cookies.set("apl_session", register_response.cookies["apl_session"])
 
@@ -120,7 +135,12 @@ def test_me_rejects_missing_session(client: TestClient) -> None:
 def test_login_rejects_invalid_password(client: TestClient) -> None:
     client.post(
         "/api/v1/auth/register",
-        json={"email": "seller@example.com", "password": "password123", "name": "Test Seller"},
+        json={
+            "email": "seller@example.com",
+            "password": "password123",
+            "confirm_password": "password123",
+            "name": "Test Seller",
+        },
     )
 
     response = client.post(

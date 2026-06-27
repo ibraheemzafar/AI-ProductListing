@@ -98,7 +98,7 @@ const features: FeatureCard[] = [
     icon: Store,
     title: 'Marketplace Optimization',
     body: 'Adapt listing assets for the channels sellers already use every day.',
-    points: ['Shopify', 'Amazon', 'Etsy', 'Daraz'],
+    points: ['Shopify', 'Amazon', 'Etsy', 'Daraz', 'WooCommerce', 'eBay'],
   },
   {
     icon: Megaphone,
@@ -122,6 +122,9 @@ const marketplaces = [
   { name: 'Amazon', icon: PackageCheck, color: 'from-amber-400/30 to-orange-300/10' },
   { name: 'Etsy', icon: Store, color: 'from-rose-400/30 to-orange-300/10' },
   { name: 'Daraz', icon: Boxes, color: 'from-sky-400/30 to-violet-300/10' },
+  { name: 'WooCommerce', icon: Store, color: 'from-indigo-400/30 to-sky-300/10' },
+  { name: 'eBay', icon: PackageCheck, color: 'from-lime-400/30 to-sky-300/10' },
+  { name: 'Generic Store', icon: ShoppingBag, color: 'from-white/20 to-cyan-300/10' },
 ];
 
 const testimonials = [

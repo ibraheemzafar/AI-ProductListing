@@ -75,10 +75,20 @@ def test_optimize_listing_for_marketplace_returns_structured_content(client: Tes
     assert payload["optimization"]["bullet_points"] == ["Soft cotton", "Everyday fit"]
 
 
+def test_optimize_listing_for_new_marketplace_options(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/products/listings/listing-1/marketplace-optimizations",
+        json={"marketplace": "woocommerce"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["marketplace"] == "woocommerce"
+
+
 def test_optimize_listing_for_marketplace_validates_marketplace(client: TestClient) -> None:
     response = client.post(
         "/api/v1/products/listings/listing-1/marketplace-optimizations",
-        json={"marketplace": "ebay"},
+        json={"marketplace": "unsupported_marketplace"},
     )
 
     assert response.status_code == 422

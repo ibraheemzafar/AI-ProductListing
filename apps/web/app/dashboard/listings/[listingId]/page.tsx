@@ -1,9 +1,7 @@
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { ListingDetailView } from './listing-detail-view';
 import { DashboardShell } from '@/components/dashboard-shell';
-import { Button } from '@/components/ui/button';
 import { getCurrentSession } from '@/lib/api/auth';
 import { getListingDetail } from '@/lib/api/listing-history';
 
@@ -26,15 +24,10 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
     const listing = await getListingDetail(listingId);
     return (
       <DashboardShell
-        actions={
-          <Button asChild variant="secondary">
-            <Link href="/dashboard">Back to listings</Link>
-          </Button>
-        }
-        description="Review generated copy, run SEO analysis, create improved versions, and build product image variants."
+        description="Review generated copy, images, marketplace assets, marketing, and versions in one organized workspace."
         email={session.user.email}
-        eyebrow="Listing detail"
-        title={listing.listing.title}
+        eyebrow="AI Workspace"
+        title="Listing detail"
       >
         <ListingDetailView listing={listing} />
       </DashboardShell>

@@ -13,7 +13,6 @@ export function WelcomeCreditsToast() {
       return;
     }
     setVisible(true);
-    // Strip the param so a refresh doesn't re-trigger the toast.
     const url = new URL(window.location.href);
     url.searchParams.delete('welcome_credits');
     window.history.replaceState(null, '', url.pathname + url.search);
@@ -30,7 +29,7 @@ export function WelcomeCreditsToast() {
       className="glass-panel fixed bottom-5 right-5 z-50 max-w-sm px-4 py-3 text-sm text-white"
       role="status"
     >
-      🎉 You’ve been rewarded {Number(credits).toLocaleString()} free credits to get started.
+      Welcome bonus applied: {Number(credits).toLocaleString()} free credits are ready to use.
     </div>
   );
 }

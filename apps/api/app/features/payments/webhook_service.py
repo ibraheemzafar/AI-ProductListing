@@ -74,7 +74,10 @@ class WebhookService:
         user_id = session.get("client_reference_id") or metadata.get("user_id")
         plan = await self._resolve_plan(metadata, price_id=None)
         if user_id is None or plan is None:
-            logger.warning("Top-up checkout missing user/plan", extra={"session": session.get("id")})
+            logger.warning(
+                "Top-up checkout missing user/plan",
+                extra={"session": session.get("id")},
+            )
             return
 
         reference_id = session.get("payment_intent") or session.get("id")
@@ -112,7 +115,10 @@ class WebhookService:
             subscription = await self._provider.retrieve_subscription(str(subscription_id))
             context = await self._sync_subscription(subscription)
             if context is None:
-                logger.warning("Invoice paid but subscription unresolved", extra={"sub": subscription_id})
+                logger.warning(
+                    "Invoice paid but subscription unresolved",
+                    extra={"sub": subscription_id},
+                )
                 return
             user_id, plan = context
 
@@ -183,7 +189,10 @@ class WebhookService:
 
         plan = await self._resolve_plan(metadata, price_id=self._price_id(subscription))
         if plan is None:
-            logger.warning("Cannot resolve plan for subscription", extra={"sub": subscription.get("id")})
+            logger.warning(
+                "Cannot resolve plan for subscription",
+                extra={"sub": subscription.get("id")},
+            )
             return None
 
         await self._subscription_service.upsert_subscription(

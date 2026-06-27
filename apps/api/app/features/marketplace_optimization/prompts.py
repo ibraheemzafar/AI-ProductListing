@@ -49,6 +49,17 @@ class MarketplaceOptimizationPromptBuilder:
             "daraz": (
                 "Use clear regional marketplace phrasing, practical benefits, and search terms."
             ),
+            "woocommerce": (
+                "Use flexible storefront copy with SEO-friendly title, readable description, "
+                "and practical product tags."
+            ),
+            "ebay": (
+                "Use direct marketplace language, search-oriented title terms, condition-neutral "
+                "benefits, and concise buyer-focused bullets."
+            ),
+            "generic_store": (
+                "Use broadly reusable ecommerce copy suitable for an independent online store."
+            ),
         }
         return guidance[marketplace]
 

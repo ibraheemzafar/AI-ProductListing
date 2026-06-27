@@ -1,17 +1,17 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
 from app.features.subscriptions.models import SubscriptionPlan, UserSubscription
 
 
-class PlanType(str, Enum):
+class PlanType(StrEnum):
     SUBSCRIPTION = "subscription"
     TOPUP = "topup"
 
 
-class SubscriptionStatus(str, Enum):
+class SubscriptionStatus(StrEnum):
     ACTIVE = "active"
     PAST_DUE = "past_due"
     CANCELED = "canceled"

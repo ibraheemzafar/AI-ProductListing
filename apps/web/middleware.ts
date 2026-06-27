@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const sessionCookieName = 'apl_session';
+const sessionCookieName = process.env.SESSION_COOKIE_NAME ?? 'apl_session';
 
 export function middleware(request: NextRequest) {
   const hasSession = request.cookies.has(sessionCookieName);
@@ -17,4 +17,3 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/dashboard/:path*'],
 };
-

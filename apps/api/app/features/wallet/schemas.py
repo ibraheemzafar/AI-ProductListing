@@ -1,12 +1,12 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
 from app.features.wallet.models import Wallet, WalletTransaction
 
 
-class WalletEntryType(str, Enum):
+class WalletEntryType(StrEnum):
     SIGNUP_BONUS = "signup_bonus"
     SUBSCRIPTION_GRANT = "subscription_grant"
     TOPUP = "topup"
