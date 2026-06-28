@@ -17,6 +17,8 @@ from app.core.error_middleware import (
 )
 from app.core.errors import AppError
 from app.core.logging import configure_logging
+from app.features.listing_generation.router import listing_alias_router
+from app.features.product_uploads.router import product_image_alias_router
 
 
 def create_app() -> FastAPI:
@@ -38,6 +40,8 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(api_router)
+    app.include_router(listing_alias_router, prefix="/api")
+    app.include_router(product_image_alias_router, prefix="/api")
     Path(settings.local_storage_path).mkdir(parents=True, exist_ok=True)
     app.mount(
         "/uploads",

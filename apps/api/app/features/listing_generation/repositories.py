@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Protocol
 
 from sqlalchemy import desc, func, select
@@ -37,6 +38,9 @@ class ListingGenerationRepository(Protocol):
         pass
 
     async def create_request_log(self, log: AiRequestLog) -> None:
+        pass
+
+    async def soft_delete_listing_for_user(self, listing_id: str, user_id: str) -> bool:
         pass
 
     async def list_generated_listings_for_user(
@@ -94,7 +98,12 @@ class SQLAlchemyListingGenerationRepository:
         result = await self._database_session.execute(
             select(GeneratedListing)
             .join(Product, Product.id == GeneratedListing.product_id)
-            .where(GeneratedListing.analysis_id == analysis_id, Product.user_id == user_id)
+            .where(
+                GeneratedListing.analysis_id == analysis_id,
+                Product.user_id == user_id,
+                GeneratedListing.deleted_at.is_(None),
+                GeneratedListing.status != "deleted",
+            )
             .order_by(desc(GeneratedListing.created_at)),
         )
         return list(result.scalars().all())
@@ -134,7 +143,11 @@ class SQLAlchemyListingGenerationRepository:
         limit: int,
         offset: int,
     ) -> tuple[list[ListingHistoryRow], int]:
-        base_filters = (Product.user_id == user_id,)
+        base_filters = (
+            Product.user_id == user_id,
+            GeneratedListing.deleted_at.is_(None),
+            GeneratedListing.status != "deleted",
+        )
         # The list shows one card per product, so count distinct products (not rows) and
         # keep only the latest listing per product.
         total_result = await self._database_session.execute(
@@ -176,7 +189,12 @@ class SQLAlchemyListingGenerationRepository:
             .join(Product, Product.id == GeneratedListing.product_id)
             .join(ProductAnalysisResult, ProductAnalysisResult.id == GeneratedListing.analysis_id)
             .join(ProductImage, ProductImage.id == ProductAnalysisResult.image_id)
-            .where(GeneratedListing.id == listing_id, Product.user_id == user_id),
+            .where(
+                GeneratedListing.id == listing_id,
+                Product.user_id == user_id,
+                GeneratedListing.deleted_at.is_(None),
+                GeneratedListing.status != "deleted",
+            ),
         )
         row = result.one_or_none()
         if row is None:
@@ -192,7 +210,12 @@ class SQLAlchemyListingGenerationRepository:
             select(GeneratedListing, ProductAnalysisResult)
             .join(Product, Product.id == GeneratedListing.product_id)
             .join(ProductAnalysisResult, ProductAnalysisResult.id == GeneratedListing.analysis_id)
-            .where(GeneratedListing.id == listing_id, Product.user_id == user_id),
+            .where(
+                GeneratedListing.id == listing_id,
+                Product.user_id == user_id,
+                GeneratedListing.deleted_at.is_(None),
+                GeneratedListing.status != "deleted",
+            ),
         )
         row = result.one_or_none()
         if row is None:
@@ -228,3 +251,23 @@ class SQLAlchemyListingGenerationRepository:
         await self._database_session.commit()
         await self._database_session.refresh(version)
         return version
+
+    async def soft_delete_listing_for_user(self, listing_id: str, user_id: str) -> bool:
+        result = await self._database_session.execute(
+            select(GeneratedListing)
+            .join(Product, Product.id == GeneratedListing.product_id)
+            .where(
+                GeneratedListing.id == listing_id,
+                Product.user_id == user_id,
+                GeneratedListing.deleted_at.is_(None),
+                GeneratedListing.status != "deleted",
+            ),
+        )
+        listing = result.scalar_one_or_none()
+        if listing is None:
+            return False
+
+        listing.status = "deleted"
+        listing.deleted_at = datetime.now(UTC)
+        await self._database_session.commit()
+        return True

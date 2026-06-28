@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
 
 from app.features.auth.dependencies import get_current_user
 from app.features.auth.models import User
@@ -31,3 +31,25 @@ async def list_product_images(
 ) -> ProductImageListResponse:
     return await upload_service.list_uploaded_images(user_id=current_user.id)
 
+
+@router.delete("/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_image(
+    image_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    upload_service: Annotated[ProductUploadService, Depends(get_product_upload_service)],
+) -> Response:
+    await upload_service.delete_uploaded_image(user_id=current_user.id, image_id=image_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+product_image_alias_router = APIRouter(prefix="/product-images", tags=["product-uploads"])
+
+
+@product_image_alias_router.delete("/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product_image_alias(
+    image_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    upload_service: Annotated[ProductUploadService, Depends(get_product_upload_service)],
+) -> Response:
+    await upload_service.delete_uploaded_image(user_id=current_user.id, image_id=image_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

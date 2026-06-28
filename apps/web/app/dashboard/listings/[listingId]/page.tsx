@@ -24,10 +24,10 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
     const listing = await getListingDetail(listingId);
     return (
       <DashboardShell
-        description="Review generated copy, images, marketplace assets, marketing, and versions in one organized workspace."
+        description="Review Product Intelligence, Listing Studio copy, Creative Studio images, marketplace assets, marketing, and versions in one organized workspace."
         email={session.user.email}
         eyebrow="AI Workspace"
-        title="Listing detail"
+        title="Product workspace"
       >
         <ListingDetailView listing={listing} />
       </DashboardShell>

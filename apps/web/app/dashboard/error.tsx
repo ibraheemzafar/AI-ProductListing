@@ -11,7 +11,7 @@ export default function DashboardError({ reset }: { reset: () => void }) {
       <section className="mx-auto max-w-3xl">
         <EmptyState
           icon={AlertTriangle}
-          title="Listing history could not load"
+          title="Workspace History could not load"
           description="Check that the API server is running, then try again."
           action={
             <Button type="button" onClick={reset}>

@@ -11,15 +11,15 @@ export default function LoginPage() {
           <div>
             <p className="eyebrow">CatalogAI</p>
             <h1 className="mt-5 max-w-md text-4xl font-semibold tracking-normal text-white">
-              Your AI product content desk.
+              Your AI Commerce Workspace.
             </h1>
             <p className="mt-4 max-w-sm text-sm leading-6 text-white/72">
-              Generate SEO listings, improve copy, enhance visuals, and export marketplace-ready
-              assets from one premium workspace.
+              Turn one product image into launch-ready listings, marketplace content, visuals, and
+              campaign assets from one premium workspace.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {['Analyze', 'Generate', 'Export'].map((item) => (
+            {['Intelligence', 'Studios', 'Launch'].map((item) => (
               <div key={item} className="rounded-md border border-white/15 bg-white/10 p-3">
                 <p className="text-sm font-semibold text-white">{item}</p>
               </div>
@@ -29,7 +29,7 @@ export default function LoginPage() {
 
         <section className="flex flex-col gap-6 p-6 sm:p-8">
           <div className="flex flex-col gap-3">
-            <p className="eyebrow">AI Product Listing Generator</p>
+            <p className="eyebrow">AI Commerce Workspace</p>
             <h2 className="text-3xl font-semibold tracking-normal text-white">
               Sign in to your workspace
             </h2>

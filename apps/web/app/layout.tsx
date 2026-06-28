@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'CatalogAI | AI Product Listing Generator',
-  description: 'Generate SEO-ready product listings and premium marketplace visuals from images.',
+  title: 'CatalogAI | AI Commerce Workspace',
+  description: 'Launch products faster with AI-generated commerce assets from one product image.',
 };
 
 interface RootLayoutProps {

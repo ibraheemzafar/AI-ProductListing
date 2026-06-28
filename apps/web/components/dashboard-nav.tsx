@@ -1,14 +1,22 @@
 'use client';
 
-import { CreditCard, ImagePlus, LayoutDashboard, Sparkles, type LucideIcon } from 'lucide-react';
+import {
+  CreditCard,
+  ImagePlus,
+  LayoutDashboard,
+  Loader2,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
 const navigationItems: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: '/dashboard', label: 'Listings', icon: LayoutDashboard },
-  { href: '/dashboard/upload', label: 'Upload', icon: ImagePlus },
+  { href: '/dashboard', label: 'AI Workspace', icon: LayoutDashboard },
+  { href: '/dashboard/upload', label: 'Product Intake', icon: ImagePlus },
   { href: '/dashboard/billing', label: 'Billing', icon: CreditCard },
 ];
 
@@ -20,7 +28,7 @@ export function DashboardBrand() {
       </span>
       <span>
         <span className="block text-sm font-semibold">CatalogAI</span>
-        <span className="block text-xs text-muted-foreground">Listing studio</span>
+        <span className="block text-xs text-muted-foreground">Commerce workspace</span>
       </span>
     </Link>
   );
@@ -28,6 +36,11 @@ export function DashboardBrand() {
 
 export function DashboardNav({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPendingHref(null);
+  }, [pathname]);
 
   return (
     <nav className={mobile ? 'flex gap-2 overflow-x-auto px-4 py-2' : 'mt-8 grid gap-2'}>
@@ -35,6 +48,7 @@ export function DashboardNav({ mobile = false }: { mobile?: boolean }) {
         const Icon = item.icon;
         const isActive =
           pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+        const isPending = pendingHref === item.href && !isActive;
         return (
           <Link
             key={item.href}
@@ -46,8 +60,17 @@ export function DashboardNav({ mobile = false }: { mobile?: boolean }) {
                 : 'text-muted-foreground hover:bg-white/[0.06] hover:text-foreground',
             )}
             href={item.href}
+            onClick={() => {
+              if (!isActive) {
+                setPendingHref(item.href);
+              }
+            }}
           >
-            <Icon className="size-4" aria-hidden="true" />
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Icon className="size-4" aria-hidden="true" />
+            )}
             {item.label}
           </Link>
         );

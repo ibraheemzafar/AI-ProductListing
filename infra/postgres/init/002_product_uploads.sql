@@ -86,8 +86,15 @@ CREATE TABLE IF NOT EXISTS generated_listings (
   seo_keywords JSONB NOT NULL,
   product_tags JSONB NOT NULL,
   raw_output JSONB NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'generated',
+  deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE generated_listings
+  ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'generated';
+ALTER TABLE generated_listings
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS ix_generated_listings_product_id
   ON generated_listings (product_id);
@@ -95,6 +102,8 @@ CREATE INDEX IF NOT EXISTS ix_generated_listings_analysis_id
   ON generated_listings (analysis_id);
 CREATE INDEX IF NOT EXISTS ix_generated_listings_product_created_at
   ON generated_listings (product_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_generated_listings_deleted_at
+  ON generated_listings (deleted_at);
 CREATE INDEX IF NOT EXISTS ix_product_images_product_created_at
   ON product_images (product_id, created_at DESC);
 

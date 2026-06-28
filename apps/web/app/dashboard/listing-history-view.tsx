@@ -46,11 +46,11 @@ export function ListingHistoryView({ listings }: { listings: DashboardListingIte
     return (
       <EmptyState
         icon={ImagePlus}
-        title="No generated listings yet"
-        description="Upload a product image and generate AI assets to see listing history here."
+        title="No product workflows yet"
+        description="Upload a product image and generate AI commerce assets to see Workspace History here."
         action={
           <Button asChild>
-            <Link href="/dashboard/upload">Upload images</Link>
+          <Link href="/dashboard/upload">Start Product Intake</Link>
           </Button>
         }
       />
@@ -62,9 +62,9 @@ export function ListingHistoryView({ listings }: { listings: DashboardListingIte
       <div className="glass-panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">Recent listings</h2>
+            <h2 className="text-lg font-semibold text-white">Recent workflows</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Search, filter, and open generated product listings.
+              Search, filter, and open product launch workspaces.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -74,9 +74,9 @@ export function ListingHistoryView({ listings }: { listings: DashboardListingIte
                 aria-hidden="true"
               />
               <input
-                aria-label="Search listings"
+                aria-label="Search workflows"
                 className="field-surface h-10 w-full pl-9"
-                placeholder="Search title, category, description"
+                placeholder="Search product, category, description"
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -134,7 +134,7 @@ export function ListingHistoryView({ listings }: { listings: DashboardListingIte
                   </div>
                   <Button asChild variant="secondary" className="w-full sm:w-auto">
                     <Link href={`/dashboard/listings/${listing.id}`}>
-                      Open
+                      Open workspace
                       <ArrowRight className="size-4" aria-hidden="true" />
                     </Link>
                   </Button>
@@ -146,7 +146,7 @@ export function ListingHistoryView({ listings }: { listings: DashboardListingIte
       ) : (
         <EmptyState
           icon={Search}
-          title="No listings match your filters"
+          title="No workflows match your filters"
           description="Try another search term or switch the status filter back to All."
         />
       )}

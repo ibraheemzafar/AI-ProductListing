@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
 import type {
@@ -31,9 +32,11 @@ import type {
   ScenePreset,
   SeoAnalysisResult,
 } from '@ai-product-listing/types';
+import { ConfirmationModal } from '@/components/confirmation-modal';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { notifyWalletChanged } from '@/lib/api/billing';
+import { deleteListing } from '@/lib/api/delete-actions';
 import {
   deleteGeneratedLifestyleScene,
   downloadGeneratedLifestyleScene,
@@ -57,11 +60,11 @@ type ResultTab = 'overview' | 'listing' | 'images' | 'marketplace' | 'marketing'
 
 const RESULT_TABS: Array<{ value: ResultTab; label: string; icon: typeof FileText }> = [
   { value: 'overview', label: 'Overview', icon: Sparkles },
-  { value: 'listing', label: 'Listing', icon: FileText },
-  { value: 'images', label: 'Images', icon: ImageIcon },
-  { value: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
-  { value: 'marketing', label: 'Marketing', icon: Megaphone },
-  { value: 'history', label: 'History', icon: Layers3 },
+  { value: 'listing', label: 'Listing Studio', icon: FileText },
+  { value: 'images', label: 'Creative Studio', icon: ImageIcon },
+  { value: 'marketplace', label: 'Marketplace Studio', icon: ShoppingBag },
+  { value: 'marketing', label: 'Marketing Studio', icon: Megaphone },
+  { value: 'history', label: 'Workspace History', icon: Layers3 },
 ];
 
 const MARKETPLACES: { value: Marketplace; label: string }[] = [
@@ -71,7 +74,7 @@ const MARKETPLACES: { value: Marketplace; label: string }[] = [
   { value: 'daraz', label: 'Daraz' },
   { value: 'woocommerce', label: 'WooCommerce' },
   { value: 'ebay', label: 'eBay' },
-  { value: 'generic_store', label: 'Generic Store' },
+  { value: 'generic_store', label: 'Generic Stores' },
 ];
 
 const SCENE_OPTIONS: { value: ScenePreset; label: string }[] = [
@@ -102,7 +105,7 @@ const MARKETPLACE_LABELS: Record<Marketplace, string> = {
   daraz: 'Daraz',
   woocommerce: 'WooCommerce',
   ebay: 'eBay',
-  generic_store: 'Generic Store',
+  generic_store: 'Generic Stores',
 };
 
 interface ListingDetailViewProps {
@@ -110,6 +113,7 @@ interface ListingDetailViewProps {
 }
 
 export function ListingDetailView({ listing }: ListingDetailViewProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ResultTab>('overview');
   const [activeListing, setActiveListing] = useState<GeneratedListing>(listing.listing);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -138,6 +142,9 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   const [marketplaceErrorMessage, setMarketplaceErrorMessage] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<GeneratedSceneImage[]>([]);
   const [generatedImageErrorMessage, setGeneratedImageErrorMessage] = useState<string | null>(null);
+  const [isDeleteListingModalOpen, setIsDeleteListingModalOpen] = useState(false);
+  const [isDeletingListing, setIsDeletingListing] = useState(false);
+  const [deleteListingErrorMessage, setDeleteListingErrorMessage] = useState<string | null>(null);
 
   const marketplaceOptimization = marketplaceOptimizationsByMarket[selectedMarketplace] ?? null;
   const activeKeywords = activeListing.seoKeywords.join(', ');
@@ -145,10 +152,10 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
 
   const assetStatus = useMemo(
     () => [
-      { label: 'Listing generated', active: true },
-      { label: 'SEO optimized', active: Boolean(seoAnalysis) },
-      { label: 'Marketplace content generated', active: Object.keys(marketplaceOptimizationsByMarket).length > 0 },
-      { label: 'Images generated', active: generatedImages.length > 0 },
+      { label: 'Listing Studio ready', active: true },
+      { label: 'SEO Studio reviewed', active: Boolean(seoAnalysis) },
+      { label: 'Marketplace Studio ready', active: Object.keys(marketplaceOptimizationsByMarket).length > 0 },
+      { label: 'Creative Studio images', active: generatedImages.length > 0 },
     ],
     [generatedImages.length, marketplaceOptimizationsByMarket, seoAnalysis],
   );
@@ -239,7 +246,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     try {
       const result = await analyzeListingSeo(listing.id);
       setSeoAnalysis(result);
-      showToast('SEO analysis completed.');
+      showToast('SEO Studio analysis completed.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'SEO analysis failed.';
       setSeoErrorMessage(message);
@@ -300,7 +307,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
       if (!alreadyOptimized || force) {
         notifyWalletChanged();
       }
-      showToast(force ? 'Marketplace optimization refreshed.' : 'Marketplace optimization ready.');
+      showToast(force ? 'Marketplace Studio content refreshed.' : 'Marketplace Studio content ready.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Marketplace optimization failed.';
       setMarketplaceErrorMessage(message);
@@ -398,6 +405,23 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
     }
   }
 
+  async function handleDeleteListing() {
+    setIsDeletingListing(true);
+    setDeleteListingErrorMessage(null);
+    try {
+      await deleteListing(listing.id);
+      showToast('Listing deleted.');
+      router.push('/dashboard');
+      router.refresh();
+    } catch (error) {
+      setDeleteListingErrorMessage(
+        error instanceof Error ? error.message : 'Could not delete listing. Please try again.',
+      );
+    } finally {
+      setIsDeletingListing(false);
+    }
+  }
+
   async function loadVersions() {
     try {
       const history = await getListingVersions(listing.id);
@@ -433,7 +457,7 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
   }
 
   function showMarketingUnavailable() {
-    showToast('Marketing copy generation is not available yet.');
+    showToast('Marketing Studio is not available yet.');
   }
 
   return (
@@ -448,8 +472,25 @@ export function ListingDetailView({ listing }: ListingDetailViewProps) {
         title={activeListing.title}
         status={listing.status}
         isExporting={isJsonExporting}
+        isDeleting={isDeletingListing}
         onExport={downloadJson}
+        onRequestDelete={() => {
+          setDeleteListingErrorMessage(null);
+          setIsDeleteListingModalOpen(true);
+        }}
       />
+
+      {isDeleteListingModalOpen ? (
+        <ConfirmationModal
+          title="Delete listing"
+          description="This will remove the listing from Workspace History and hide it from product workspace views."
+          confirmLabel="Delete listing"
+          isConfirming={isDeletingListing}
+          errorMessage={deleteListingErrorMessage}
+          onCancel={() => setIsDeleteListingModalOpen(false)}
+          onConfirm={() => void handleDeleteListing()}
+        />
+      ) : null}
 
       <ResultTabs activeTab={activeTab} onChange={setActiveTab} />
 
@@ -543,12 +584,16 @@ function ListingWorkspaceHeader({
   title,
   status,
   isExporting,
+  isDeleting,
   onExport,
+  onRequestDelete,
 }: {
   title: string;
   status: string;
   isExporting: boolean;
+  isDeleting: boolean;
   onExport: () => Promise<void>;
+  onRequestDelete: () => void;
 }) {
   return (
     <section className="glass-panel p-4 sm:p-5">
@@ -558,7 +603,7 @@ function ListingWorkspaceHeader({
             <Button asChild variant="secondary" className="h-9 px-3">
               <Link href="/dashboard">
                 <ArrowLeft className="size-4" aria-hidden="true" />
-                Back to Listings
+                Back to AI Workspace
               </Link>
             </Button>
             <span className="rounded-full border border-primary/35 bg-primary/15 px-3 py-1 text-xs font-semibold capitalize text-white">
@@ -569,14 +614,24 @@ function ListingWorkspaceHeader({
             {title}
           </h1>
         </div>
-        <Button type="button" onClick={() => void onExport()} disabled={isExporting}>
-          {isExporting ? (
-            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-          ) : (
-            <Download className="size-4" aria-hidden="true" />
-          )}
-          {isExporting ? 'Exporting' : 'Export'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={onRequestDelete} disabled={isDeleting}>
+            {isDeleting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Trash2 className="size-4" aria-hidden="true" />
+            )}
+            Delete
+          </Button>
+          <Button type="button" onClick={() => void onExport()} disabled={isExporting}>
+            {isExporting ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <Download className="size-4" aria-hidden="true" />
+            )}
+            {isExporting ? 'Exporting' : 'Export'}
+          </Button>
+        </div>
       </div>
     </section>
   );
@@ -647,7 +702,7 @@ function OverviewPanel({
       />
       <div className="grid gap-5">
         <section className="premium-card p-5">
-          <p className="eyebrow">Product Analysis</p>
+          <p className="eyebrow">Product Intelligence</p>
           <dl className="mt-5 grid gap-3 sm:grid-cols-2">
             {attributes.map(([label, value]) => (
               <div key={label} className="rounded-md border border-white/10 bg-background/45 p-3">
@@ -660,7 +715,7 @@ function OverviewPanel({
 
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="premium-card p-5">
-            <p className="eyebrow">SEO Summary</p>
+            <p className="eyebrow">SEO Studio</p>
             {seoAnalysis ? (
               <div className="mt-5 grid gap-4">
                 <ScoreMeter label="SEO score" value={seoAnalysis.analysis.seoScore} />
@@ -669,14 +724,14 @@ function OverviewPanel({
             ) : (
               <EmptyState
                 icon={SearchCheck}
-                title="No SEO score yet"
-                body="Run SEO analysis from the Listing tab to see quality scores here."
+                title="No SEO Studio score yet"
+                body="Run SEO Studio analysis from the Listing Studio tab to see quality scores here."
               />
             )}
           </section>
 
           <section className="premium-card p-5">
-            <p className="eyebrow">Asset Status</p>
+            <p className="eyebrow">Workspace Status</p>
             <div className="mt-5 grid gap-3">
               {assetStatus.map((item) => (
                 <div
@@ -701,7 +756,7 @@ function OverviewPanel({
         </div>
 
         <section className="premium-card p-5">
-          <p className="eyebrow">Live Listing</p>
+          <p className="eyebrow">Live Commerce Copy</p>
           <h2 className="mt-3 text-xl font-semibold text-white">{activeListing.title}</h2>
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
             {activeListing.shortDescription}
@@ -746,15 +801,15 @@ function ListingPanel({
       <section className="glass-panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="eyebrow">Generated Listing</p>
+            <p className="eyebrow">Listing Studio</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Review the live generated content and refine only when needed.
+              Review launch-ready product copy and refine only when needed.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={() => void onCopyFull()}>
               <Clipboard className="size-4" aria-hidden="true" />
-              {copiedKey === 'copy-full-listing' ? 'Copied' : 'Copy full listing'}
+              {copiedKey === 'copy-full-listing' ? 'Copied' : 'Copy full copy'}
             </Button>
             <Button type="button" variant="secondary" onClick={() => void onImprove()} disabled={isImproving}>
               {isImproving ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
@@ -798,7 +853,7 @@ function ListingPanel({
           onCopy={onCopyField}
         />
         <TagSection
-          title="SEO keywords"
+          title="SEO Studio keywords"
           values={listing.seoKeywords}
           copyKey="seo-keywords"
           copiedKey={copiedKey}
@@ -816,14 +871,14 @@ function ListingPanel({
       <section className="premium-card p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-white">SEO quality</h2>
+            <h2 className="text-base font-semibold text-white">SEO Studio quality</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Run this when you want a score and improvement guidance.
             </p>
           </div>
           <Button type="button" variant="secondary" onClick={() => void onAnalyzeSeo()} disabled={isSeoAnalyzing}>
             {isSeoAnalyzing ? <Loader2 className="size-4 animate-spin" /> : <SearchCheck className="size-4" />}
-            {isSeoAnalyzing ? 'Analyzing' : 'Analyze SEO'}
+              {isSeoAnalyzing ? 'Analyzing' : 'Analyze in SEO Studio'}
           </Button>
         </div>
         {seoErrorMessage ? <div className="mt-4"><ErrorMessage message={seoErrorMessage} /></div> : null}
@@ -863,9 +918,9 @@ function ImageGallery({
       <section className="glass-panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="eyebrow">Image Gallery</p>
+            <p className="eyebrow">Creative Studio</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Generate and manage product scene images without crowding the canvas.
+              Generate and manage product scene images for storefronts and campaigns.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -884,7 +939,7 @@ function ImageGallery({
             </select>
             <Button type="button" onClick={onGenerate} disabled={isGenerating}>
               {isGenerating ? <Loader2 className="size-4 animate-spin" /> : <ImageIcon className="size-4" />}
-              {isGenerating ? 'Generating' : 'Generate image'}
+              {isGenerating ? 'Generating' : 'Generate creative'}
             </Button>
           </div>
         </div>
@@ -941,9 +996,9 @@ function ImageGallery({
       ) : (
         <EmptyState
           icon={ImageIcon}
-          title="No generated images yet"
-          body="Choose a preset and generate a lifestyle image for this product."
-          action={<Button type="button" onClick={onGenerate}>Generate image</Button>}
+          title="No Creative Studio images yet"
+          body="Choose a preset and generate a product image for this launch workflow."
+          action={<Button type="button" onClick={onGenerate}>Generate creative</Button>}
         />
       )}
     </div>
@@ -985,16 +1040,16 @@ function MarketplacePanel({
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_280px] sm:items-end">
             <div>
-              <p className="eyebrow">Marketplace Content</p>
+              <p className="eyebrow">Marketplace Studio</p>
               <h2 className="mt-2 text-xl font-semibold text-white">
                 {MARKETPLACE_LABELS[selectedMarketplace]} output
               </h2>
               <p className="mt-2 text-sm text-muted-foreground">
-                Select a marketplace, generate optimized content, then copy or export it.
+                Select a marketplace, generate channel-ready content, then copy or export it.
               </p>
             </div>
             <label className="grid gap-2 text-sm font-medium text-white">
-              Marketplace
+              Marketplace Studio channel
               <select
                 aria-label="Select marketplace"
                 className="field-surface h-10"
@@ -1013,7 +1068,7 @@ function MarketplacePanel({
           <div className="flex flex-wrap gap-2">
             <Button type="button" onClick={optimization ? onRefresh : onOptimize} disabled={isOptimizing}>
               {isOptimizing ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              {optimization ? 'Refresh content' : 'Create content'}
+              {optimization ? 'Refresh content' : 'Create channel content'}
             </Button>
             {optimization ? (
               <Button type="button" variant="secondary" onClick={() => void onCopy(optimization)}>
@@ -1054,8 +1109,8 @@ function MarketplacePanel({
         <EmptyState
           icon={ShoppingBag}
           title={`No ${MARKETPLACE_LABELS[selectedMarketplace]} content yet`}
-          body="Create marketplace content to see optimized titles, descriptions, bullets, tags, and notes."
-          action={<Button type="button" onClick={onOptimize}>Create content</Button>}
+          body="Create Marketplace Studio content to see optimized titles, descriptions, bullets, tags, and notes."
+          action={<Button type="button" onClick={onOptimize}>Create channel content</Button>}
         />
       )}
     </div>
@@ -1066,9 +1121,9 @@ function MarketingPanel({ onGenerate }: { onGenerate: () => void }) {
   return (
     <EmptyState
       icon={Megaphone}
-      title="Generate marketing copy to create ads and social captions."
+      title="Marketing Studio is ready for campaign copy."
       body="Facebook ads, Instagram captions, Google ads, email copy, and TikTok captions will appear here when this workflow is available."
-      action={<Button type="button" onClick={onGenerate}>Generate Marketing Copy</Button>}
+      action={<Button type="button" onClick={onGenerate}>Open Marketing Studio</Button>}
     />
   );
 }
@@ -1091,11 +1146,11 @@ function HistoryPanel({
   return (
     <div className="grid gap-5">
       <section className="premium-card p-5">
-        <p className="eyebrow">Content History</p>
+        <p className="eyebrow">Workspace History</p>
         <div className="mt-5 grid gap-4">
           <VersionCard
             title="Original version"
-            detail="Initial generated listing"
+            detail="Initial Listing Studio output"
             listing={originalListing}
             isLive={sameListing(originalListing, activeListing)}
             createdAt={null}

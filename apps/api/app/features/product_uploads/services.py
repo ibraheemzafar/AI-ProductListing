@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from app.core.errors import AppError
+from app.core.errors import AppError, NotFoundError
 from app.features.product_uploads.models import ProductImage
 from app.features.product_uploads.repositories import ProductUploadRepository
 from app.features.product_uploads.schemas import ProductImageListResponse, ProductUploadResponse
@@ -75,6 +75,24 @@ class ProductUploadService:
     async def list_uploaded_images(self, user_id: str) -> ProductImageListResponse:
         images = await self._repository.list_images_for_user(user_id)
         return ProductImageListResponse.from_models(images)
+
+    async def delete_uploaded_image(self, user_id: str, image_id: str) -> None:
+        if not image_id.strip():
+            raise AppError("Image id is required")
+
+        image = await self._repository.get_image_for_user(image_id=image_id, user_id=user_id)
+        if image is None:
+            raise NotFoundError("Uploaded image was not found")
+
+        if await self._repository.image_has_linked_workspace_assets(image_id):
+            raise AppError("This image is linked to a listing. Delete the listing first.")
+
+        try:
+            await self._storage_provider.delete(image.storage_filename)
+        except Exception as error:
+            raise AppError("Could not delete image storage. Please try again.") from error
+
+        await self._repository.delete_image(image)
 
     async def _read_and_validate_file(self, file: UploadFile) -> bytes:
         self._validate_file_name(file.filename)

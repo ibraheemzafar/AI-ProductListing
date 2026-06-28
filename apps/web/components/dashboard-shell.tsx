@@ -40,9 +40,9 @@ export function DashboardShell({
         <DashboardNav />
         <div className="mt-8 rounded-lg border border-primary/20 bg-primary/10 p-4 shadow-[0_20px_80px_-60px_hsl(var(--primary))]">
           <WandSparkles className="size-5 text-primary" aria-hidden="true" />
-          <p className="mt-3 text-sm font-medium">AI workflow</p>
+          <p className="mt-3 text-sm font-medium">AI Commerce Workspace</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Upload images, generate listing assets, and review the final output.
+            Upload one product image, generate commerce assets, and review every studio output.
           </p>
         </div>
       </aside>
@@ -57,7 +57,7 @@ export function DashboardShell({
               </Link>
             </div>
             <div className="hidden min-w-0 text-sm text-muted-foreground lg:block">
-              {email ? email : 'AI product listing workspace'}
+              {email ? email : 'AI commerce workspace'}
             </div>
             <div className="flex items-center gap-2">
               <WalletBalance />
@@ -66,7 +66,7 @@ export function DashboardShell({
                 href="/dashboard/upload"
               >
                 <ImagePlus className="size-4" aria-hidden="true" />
-                Upload
+                Product Intake
               </Link>
               <LogoutButton />
             </div>

@@ -11,12 +11,12 @@ test('dashboard page includes listing history success and empty states', () => {
   const source = readSource('../app/dashboard/page.tsx');
   const listingHistorySource = readSource('../app/dashboard/listing-history-view.tsx');
 
-  assert.match(source, /Listing history/);
+  assert.match(source, /Workspace History/);
   assert.match(source, /ListingHistoryView/);
   assert.match(source, /enrichListingsWithCategory/);
   assert.match(listingHistorySource, /filteredListings\.map/);
-  assert.match(listingHistorySource, /No generated listings yet/);
-  assert.match(listingHistorySource, /No listings match your filters/);
+  assert.match(listingHistorySource, /No product workflows yet/);
+  assert.match(listingHistorySource, /No workflows match your filters/);
   assert.match(listingHistorySource, /StatusBadge/);
   assert.match(source, /Upload images/);
 });
@@ -28,7 +28,7 @@ test('dashboard route includes loading and error states', () => {
   const globalErrorSource = readSource('../app/global-error.tsx');
 
   assert.match(loadingSource, /DashboardLoading/);
-  assert.match(errorSource, /Listing history could not load/);
+  assert.match(errorSource, /Workspace History could not load/);
   assert.match(errorSource, /Try again/);
   assert.match(rootErrorSource, /Something went wrong/);
   assert.match(globalErrorSource, /Application error/);
@@ -55,15 +55,15 @@ test('listing detail view includes generated listing fields and copy actions', (
   assert.match(source, /MarketplacePanel/);
   assert.match(source, /MarketingPanel/);
   assert.match(source, /HistoryPanel/);
-  assert.match(source, /Product Analysis/);
-  assert.match(source, /Copy full listing/);
+  assert.match(source, /Product Intelligence/);
+  assert.match(source, /Copy full copy/);
   assert.match(source, /Shopify CSV/);
-  assert.match(source, /Analyze SEO/);
+  assert.match(source, /Analyze in SEO Studio/);
   assert.match(source, /Improve/);
   assert.match(source, /Regenerate/);
-  assert.match(source, /Create content/);
-  assert.match(source, /Image Gallery/);
-  assert.match(source, /Generate image/);
+  assert.match(source, /Create channel content/);
+  assert.match(source, /Creative Studio/);
+  assert.match(source, /Generate creative/);
   assert.match(source, /Before/);
   assert.match(source, /After/);
   assert.match(source, /Shopify/);
@@ -73,9 +73,9 @@ test('listing detail view includes generated listing fields and copy actions', (
   assert.match(source, /Optimized title/);
   assert.match(source, /Bullet points/);
   assert.match(source, /Keywords \/ tags/);
-  assert.match(source, /SEO quality/);
-  assert.match(source, /Content History/);
-  assert.match(source, /Generate Marketing Copy/);
+  assert.match(source, /SEO Studio quality/);
+  assert.match(source, /Workspace History/);
+  assert.match(source, /Open Marketing Studio/);
   assert.match(source, /ScoreMeter/);
   assert.match(source, /Short description/);
   assert.match(source, /Long description/);
@@ -95,10 +95,10 @@ test('listing detail view includes generated listing fields and copy actions', (
   assert.match(source, /regenerateListing/);
   assert.match(source, /JSON export downloaded/);
   assert.match(source, /Shopify CSV downloaded/);
-  assert.match(source, /SEO analysis completed/);
+  assert.match(source, /SEO Studio analysis completed/);
   assert.match(source, /Improved version created/);
   assert.match(source, /Version accepted/);
-  assert.match(source, /Marketplace optimization ready/);
+  assert.match(source, /Marketplace Studio content ready/);
   assert.match(source, /Generated image saved/);
   assert.match(source, /Copy failed/);
 });
@@ -109,6 +109,6 @@ test('listing detail route includes loading, error, and not found states', () =>
   const notFoundSource = readSource('../app/dashboard/listings/[listingId]/not-found.tsx');
 
   assert.match(loadingSource, /ListingDetailLoading/);
-  assert.match(errorSource, /Listing detail could not load/);
-  assert.match(notFoundSource, /Listing not found/);
+  assert.match(errorSource, /Product workspace could not load/);
+  assert.match(notFoundSource, /Workspace not found/);
 });

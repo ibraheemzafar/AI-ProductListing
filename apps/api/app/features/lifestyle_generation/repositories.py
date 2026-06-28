@@ -65,7 +65,12 @@ class SQLAlchemyLifestyleGenerationRepository:
             .join(Product, Product.id == GeneratedListing.product_id)
             .join(ProductAnalysisResult, ProductAnalysisResult.id == GeneratedListing.analysis_id)
             .join(ProductImage, ProductImage.id == ProductAnalysisResult.image_id)
-            .where(GeneratedListing.id == listing_id, Product.user_id == user_id),
+            .where(
+                GeneratedListing.id == listing_id,
+                Product.user_id == user_id,
+                GeneratedListing.deleted_at.is_(None),
+                GeneratedListing.status != "deleted",
+            ),
         )
         row = result.one_or_none()
         if row is None:
@@ -133,6 +138,11 @@ class SQLAlchemyLifestyleGenerationRepository:
         result = await self._database_session.execute(
             select(GeneratedListing.id)
             .join(Product, Product.id == GeneratedListing.product_id)
-            .where(GeneratedListing.id == listing_id, Product.user_id == user_id),
+            .where(
+                GeneratedListing.id == listing_id,
+                Product.user_id == user_id,
+                GeneratedListing.deleted_at.is_(None),
+                GeneratedListing.status != "deleted",
+            ),
         )
         return result.scalar_one_or_none() is not None

@@ -16,11 +16,15 @@ from app.shared.storage.provider import StorageProvider
 JPEG_BYTES = b"\xff\xd8\xff\xe0fake-jpeg"
 PNG_BYTES = b"\x89PNG\r\n\x1a\nfake-png"
 WEBP_BYTES = b"RIFFxxxxWEBPfake-webp"
+TEST_REPOSITORY: "InMemoryProductUploadRepository | None" = None
+TEST_STORAGE_PROVIDER: "InMemoryStorageProvider | None" = None
 
 
 class InMemoryStorageProvider(StorageProvider):
     def __init__(self) -> None:
         self.files: dict[str, bytes] = {}
+        self.deleted_files: list[str] = []
+        self.fail_delete = False
 
     async def upload(self, file_name: str, content: bytes, content_type: str) -> str:
         del content_type
@@ -31,12 +35,18 @@ class InMemoryStorageProvider(StorageProvider):
         return self.files[file_name]
 
     async def delete(self, file_name: str) -> None:
+        if self.fail_delete:
+            raise RuntimeError("storage unavailable")
+        self.deleted_files.append(file_name)
         self.files.pop(file_name, None)
 
 
 class InMemoryProductUploadRepository(ProductUploadRepository):
     def __init__(self) -> None:
         self.images: list[ProductImage] = []
+        self.image_owner_by_id: dict[str, str] = {}
+        self.linked_image_ids: set[str] = set()
+        self.deleted_image_ids: list[str] = []
 
     async def create_product_with_images(
         self,
@@ -57,18 +67,37 @@ class InMemoryProductUploadRepository(ProductUploadRepository):
             image.product_id = product.id
             image.created_at = datetime.now(UTC)
             self.images.append(image)
+            self.image_owner_by_id[image.id] = user_id
 
         return product, images
 
     async def list_images_for_user(self, user_id: str) -> list[ProductImage]:
-        del user_id
-        return self.images
+        return [
+            image
+            for image in self.images
+            if self.image_owner_by_id.get(image.id) == user_id
+        ]
+
+    async def get_image_for_user(self, image_id: str, user_id: str) -> ProductImage | None:
+        if self.image_owner_by_id.get(image_id) != user_id:
+            return None
+        return next((image for image in self.images if image.id == image_id), None)
+
+    async def image_has_linked_workspace_assets(self, image_id: str) -> bool:
+        return image_id in self.linked_image_ids
+
+    async def delete_image(self, image: ProductImage) -> None:
+        self.deleted_image_ids.append(image.id)
+        self.images = [item for item in self.images if item.id != image.id]
 
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
+    global TEST_REPOSITORY, TEST_STORAGE_PROVIDER
     repository = InMemoryProductUploadRepository()
     storage_provider = InMemoryStorageProvider()
+    TEST_REPOSITORY = repository
+    TEST_STORAGE_PROVIDER = storage_provider
     upload_service = ProductUploadService(repository=repository, storage_provider=storage_provider)
     app = create_app()
     app.dependency_overrides[get_current_user] = lambda: User(
@@ -84,6 +113,8 @@ def client() -> Iterator[TestClient]:
         yield test_client
 
     app.dependency_overrides.clear()
+    TEST_REPOSITORY = None
+    TEST_STORAGE_PROVIDER = None
 
 
 def test_upload_product_images_accepts_supported_files(client: TestClient) -> None:
@@ -147,3 +178,96 @@ def test_upload_product_images_rejects_mismatched_content(client: TestClient) ->
         response.json()["error"]["message"]
         == "Uploaded file content does not match a supported image format"
     )
+
+
+def test_unused_image_is_hard_deleted(client: TestClient) -> None:
+    client.post(
+        "/api/v1/products/images",
+        files=[("files", ("front.jpg", JPEG_BYTES, "image/jpeg"))],
+    )
+
+    response = client.delete("/api/v1/product-images/image-1")
+
+    assert response.status_code == 204
+    list_response = client.get("/api/v1/products/images")
+    assert list_response.json()["images"] == []
+
+
+def test_unused_image_unversioned_alias_is_hard_deleted(client: TestClient) -> None:
+    client.post(
+        "/api/v1/products/images",
+        files=[("files", ("front.jpg", JPEG_BYTES, "image/jpeg"))],
+    )
+
+    response = client.delete("/api/product-images/image-1")
+
+    assert response.status_code == 204
+    assert client.get("/api/v1/products/images").json()["images"] == []
+
+
+def test_linked_image_deletion_is_blocked(client: TestClient) -> None:
+    assert TEST_REPOSITORY is not None
+    TEST_REPOSITORY.linked_image_ids.add("image-1")
+    client.post(
+        "/api/v1/products/images",
+        files=[("files", ("front.jpg", JPEG_BYTES, "image/jpeg"))],
+    )
+
+    response = client.delete("/api/v1/product-images/image-1")
+
+    assert response.status_code == 400
+    assert (
+        response.json()["error"]["message"]
+        == "This image is linked to a listing. Delete the listing first."
+    )
+    assert client.get("/api/v1/products/images").json()["images"][0]["id"] == "image-1"
+
+
+def test_other_user_cannot_delete_image(client: TestClient) -> None:
+    client.post(
+        "/api/v1/products/images",
+        files=[("files", ("front.jpg", JPEG_BYTES, "image/jpeg"))],
+    )
+    assert TEST_REPOSITORY is not None
+    assert TEST_STORAGE_PROVIDER is not None
+    repository = TEST_REPOSITORY
+    storage_provider = TEST_STORAGE_PROVIDER
+    repository.image_owner_by_id["image-1"] = "user-1"
+    app = create_app()
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id="other-user",
+        email="other@example.com",
+        name="Other Seller",
+        avatar_url=None,
+        password_hash="hash",
+    )
+    app.dependency_overrides[get_product_upload_service] = lambda: ProductUploadService(
+        repository=repository,
+        storage_provider=storage_provider,
+    )
+
+    with TestClient(app) as other_client:
+        response = other_client.delete("/api/v1/product-images/image-1")
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "not_found"
+
+
+def test_storage_delete_failure_keeps_image_record(client: TestClient) -> None:
+    assert TEST_STORAGE_PROVIDER is not None
+    TEST_STORAGE_PROVIDER.fail_delete = True
+    client.post(
+        "/api/v1/products/images",
+        files=[("files", ("front.jpg", JPEG_BYTES, "image/jpeg"))],
+    )
+
+    response = client.delete("/api/v1/product-images/image-1")
+
+    assert response.status_code == 400
+    assert (
+        response.json()["error"]["message"]
+        == "Could not delete image storage. Please try again."
+    )
+    assert client.get("/api/v1/products/images").json()["images"][0]["id"] == "image-1"

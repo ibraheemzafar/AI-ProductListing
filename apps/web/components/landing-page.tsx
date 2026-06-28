@@ -60,17 +60,17 @@ const stagger = {
 };
 
 const workflowSteps = [
-  { icon: UploadCloud, label: 'Upload Product', body: 'Drop a product image into the studio.' },
-  { icon: Bot, label: 'AI Analysis', body: 'Detect category, style, attributes, and audience.' },
-  { icon: FileText, label: 'SEO Listing', body: 'Create conversion-focused titles and descriptions.' },
-  { icon: ImageIcon, label: 'Lifestyle Images', body: 'Generate rich campaign-ready product scenes.' },
-  { icon: Download, label: 'Marketplace Export', body: 'Prepare content for storefronts and channels.' },
+  { icon: UploadCloud, label: 'Upload Product', body: 'Drop one product image into the workspace.' },
+  { icon: Bot, label: 'Product Intelligence', body: 'Detect category, style, attributes, and audience.' },
+  { icon: FileText, label: 'Listing Studio', body: 'Create launch-ready titles, descriptions, and tags.' },
+  { icon: ImageIcon, label: 'Creative Studio', body: 'Generate rich campaign-ready product scenes.' },
+  { icon: Download, label: 'Marketplace Studio', body: 'Prepare content for storefronts and channels.' },
 ];
 
 const trustItems = [
   { icon: Zap, label: 'Generate in Seconds' },
-  { icon: LineChart, label: 'SEO Optimized' },
-  { icon: ImageIcon, label: 'AI Product Images' },
+  { icon: LineChart, label: 'SEO Studio' },
+  { icon: ImageIcon, label: 'Creative Studio' },
   { icon: ShoppingBag, label: 'Marketplace Ready' },
   { icon: Globe2, label: 'Multi-Language' },
 ];
@@ -78,42 +78,42 @@ const trustItems = [
 const features: FeatureCard[] = [
   {
     icon: Eye,
-    title: 'AI Product Analysis',
-    body: 'Turn a single image into useful product intelligence for listings and campaigns.',
+    title: 'Product Intelligence',
+    body: 'Turn a single image into useful product intelligence for listings, visuals, and campaigns.',
     points: ['Detect category', 'Extract attributes', 'Product intelligence'],
   },
   {
     icon: ClipboardList,
-    title: 'AI Listing Generator',
-    body: 'Generate marketplace-ready product content with SEO structure baked in.',
+    title: 'Listing Studio',
+    body: 'Generate launch-ready product content with SEO structure baked in.',
     points: ['SEO titles', 'Descriptions', 'Tags'],
   },
   {
     icon: Camera,
-    title: 'AI Image Studio',
+    title: 'Creative Studio',
     body: 'Create polished visuals that make products feel ready for premium storefronts.',
     points: ['Background removal', 'Lifestyle images', 'Hero images'],
   },
   {
     icon: Store,
-    title: 'Marketplace Optimization',
-    body: 'Adapt listing assets for the channels sellers already use every day.',
-    points: ['Shopify', 'Amazon', 'Etsy', 'Daraz', 'WooCommerce', 'eBay'],
+    title: 'Marketplace Studio',
+    body: 'Adapt commerce assets for the channels sellers already use every day.',
+    points: ['Amazon', 'Shopify', 'WooCommerce', 'Etsy', 'eBay', 'Daraz'],
   },
   {
     icon: Megaphone,
-    title: 'AI Marketing Suite',
-    body: 'Extend the listing into ad copy, social captions, and lifecycle campaigns.',
+    title: 'Marketing Studio',
+    body: 'Extend product assets into ad copy, social captions, and lifecycle campaigns.',
     points: ['Facebook Ads', 'Instagram Captions', 'Google Ads', 'Email Campaigns'],
   },
 ];
 
 const timeline = [
   'Upload Product',
-  'AI Analysis',
-  'Listing Generation',
-  'SEO Optimization',
-  'Image Generation',
+  'Product Intelligence',
+  'Listing Studio',
+  'SEO Studio',
+  'Creative Studio',
   'Export',
 ];
 
@@ -124,21 +124,21 @@ const marketplaces = [
   { name: 'Daraz', icon: Boxes, color: 'from-sky-400/30 to-violet-300/10' },
   { name: 'WooCommerce', icon: Store, color: 'from-indigo-400/30 to-sky-300/10' },
   { name: 'eBay', icon: PackageCheck, color: 'from-lime-400/30 to-sky-300/10' },
-  { name: 'Generic Store', icon: ShoppingBag, color: 'from-white/20 to-cyan-300/10' },
+  { name: 'Generic Stores', icon: ShoppingBag, color: 'from-white/20 to-cyan-300/10' },
 ];
 
 const testimonials = [
   {
     quote:
-      'CatalogAI turned a messy batch of product photos into polished listings my team could publish the same afternoon.',
+      'CatalogAI turned a product photo into launch assets my team could publish across channels the same afternoon.',
     name: 'Maya Chen',
     role: 'Founder, Linen & Loom',
   },
   {
     quote:
-      'The SEO drafts are strong, but the real win is the consistency. Every product now sounds like it belongs to the same brand.',
+      'The studios keep every product page, marketplace draft, and campaign asset aligned with the same brand voice.',
     name: 'Omar Hassan',
-    role: 'Marketplace Lead, StudioSupply',
+    role: 'Commerce Lead, StudioSupply',
   },
   {
     quote:
@@ -153,13 +153,13 @@ const pricing = [
     name: 'Starter',
     price: '$19',
     description: 'For new sellers building a cleaner catalog workflow.',
-    features: ['50 AI listings / month', 'SEO titles and tags', 'Basic exports'],
+    features: ['50 product workflows / month', 'SEO Studio titles and tags', 'Basic exports'],
   },
   {
     name: 'Professional',
     price: '$49',
     description: 'For growing stores that need content and campaign assets.',
-    features: ['300 AI listings / month', 'Image studio access', 'Marketplace optimization'],
+    features: ['300 product workflows / month', 'Creative Studio access', 'Marketplace Studio'],
     highlighted: true,
   },
   {
@@ -172,24 +172,24 @@ const pricing = [
 
 const faqs = [
   {
-    question: 'Can CatalogAI generate a listing from one image?',
+    question: 'Can CatalogAI launch a product workflow from one image?',
     answer:
-      'Yes. The product workflow is designed around image-first intake, then AI analysis, SEO copy, and export-ready listing assets.',
+      'Yes. The product workflow is designed around image-first intake, then Product Intelligence, Listing Studio content, SEO guidance, and export-ready assets.',
   },
   {
     question: 'Which marketplaces are supported?',
     answer:
-      'The product direction includes marketplace-ready exports for common e-commerce channels, with Shopify, Amazon, Etsy, Daraz, WooCommerce, and CSV workflows represented in the experience.',
+      'The product direction includes marketplace-ready exports for Amazon, Shopify, WooCommerce, Etsy, eBay, Daraz, and Generic Stores.',
   },
   {
     question: 'Is this useful for agencies?',
     answer:
-      'Yes. Agencies can use the workflow to standardize listing content, generate campaign copy, and speed up product launch preparation.',
+      'Yes. Agencies can use the workspace to standardize commerce content, generate campaign copy, and speed up product launch preparation.',
   },
   {
     question: 'Does it support AI-generated product visuals?',
     answer:
-      'The platform experience includes image enhancement, lifestyle scenes, and hero image generation as part of the AI content workflow.',
+      'The workspace includes image enhancement, lifestyle scenes, and hero image generation as part of the Creative Studio direction.',
   },
 ];
 
@@ -294,7 +294,7 @@ function HeroWorkflowVisual() {
       <div className="overflow-hidden rounded-lg border border-white/10 bg-slate-950/70">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
           <div>
-            <p className="text-sm font-semibold text-white">AI workflow engine</p>
+            <p className="text-sm font-semibold text-white">AI Commerce Workspace</p>
             <p className="text-xs text-muted-foreground">Product image to launch assets</p>
           </div>
           <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-200">
@@ -342,27 +342,27 @@ function HeroSection() {
         transition={{ staggerChildren: 0.08 }}
       >
         <motion.p className="eyebrow" variants={fadeUp}>
-          AI Product Listing Generator
+          AI Commerce Workspace
         </motion.p>
         <motion.h1
           className="mt-5 max-w-5xl text-5xl font-semibold text-white sm:text-6xl lg:text-7xl"
           variants={fadeUp}
         >
-          Transform Product Photos into High-Converting Listings with AI
+          Your AI Commerce Workspace
         </motion.h1>
         <motion.p
           className="mt-6 max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg"
           variants={fadeUp}
         >
-          Generate product listings, SEO content, marketplace exports, lifestyle images, ad copy,
-          and marketing assets from a single product image.
+          Upload one product image and let AI generate everything needed to launch and market that
+          product across Amazon, Shopify, WooCommerce, Etsy, eBay, Daraz, and Generic Stores.
         </motion.p>
         <motion.div className="mt-9 flex flex-wrap gap-3" variants={fadeUp}>
           <Link
             className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-gradient-to-r from-primary to-accent px-5 text-sm font-semibold text-white shadow-[0_22px_70px_-28px_hsl(var(--primary))] transition hover:-translate-y-0.5"
             href="/login"
           >
-            Generate First Listing
+            Start Product Workflow
             <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
           <a
@@ -417,9 +417,9 @@ function FeatureSection() {
   return (
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8" id="features">
       <SectionHeading
-        body="A focused AI workspace for sellers who need better listings, stronger visuals, and faster launches."
+        body="A connected AI workspace for sellers who need better product pages, stronger visuals, and faster launches."
         eyebrow="Features"
-        title="Everything your product content team needs"
+        title="Everything your commerce team needs to launch"
       />
       <motion.div
         className="mt-14 grid gap-4 md:grid-cols-2 lg:grid-cols-3"
@@ -458,9 +458,9 @@ function WorkflowSection() {
     <section className="bg-white/[0.025] px-4 py-24 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <SectionHeading
-          body="From raw product image to publishable marketplace content, the workflow stays guided and fast."
+          body="From raw product image to publishable marketplace and marketing assets, the workflow stays guided and fast."
           eyebrow="Workflow"
-          title="A launch pipeline powered by AI"
+          title="A complete launch workflow powered by AI"
         />
         <div className="mt-16 grid gap-4 lg:grid-cols-6">
           {timeline.map((step, index) => (
@@ -500,7 +500,7 @@ function DemoSection() {
       <SectionHeading
         body="A realistic preview of how a product image becomes SEO copy, visual direction, and export-ready content."
         eyebrow="Interactive Demo"
-        title="Watch the listing build itself"
+        title="Watch the workspace build the launch kit"
       />
       <div className="mt-14 grid gap-5 lg:grid-cols-[420px_minmax(0,1fr)]">
         <motion.div
@@ -540,7 +540,7 @@ function DemoSection() {
           whileInView="visible"
         >
           <div className="border-b border-white/10 px-5 py-4">
-            <p className="text-sm font-semibold text-white">Generated Listing Preview</p>
+            <p className="text-sm font-semibold text-white">Commerce Asset Preview</p>
             <p className="mt-1 text-xs text-muted-foreground">SEO score 94/100 · Marketplace ready</p>
           </div>
           <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -630,8 +630,8 @@ function MarketplaceSection() {
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
       <div className="grid gap-10 lg:grid-cols-[0.82fr_1fr] lg:items-center">
         <div>
-          <p className="eyebrow">Marketplace Export</p>
-          <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">One Click Export</h2>
+          <p className="eyebrow">Marketplace Studio</p>
+          <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">Prepare every channel from one workspace</h2>
           <p className="mt-5 text-base leading-8 text-muted-foreground">
             Prepare polished content for major marketplaces and storefront workflows, then move from
             generation to publishing without rebuilding assets by hand.
@@ -640,7 +640,7 @@ function MarketplaceSection() {
             className="mt-8 inline-flex h-11 items-center justify-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/10"
             href="/login"
           >
-            Export a listing
+            Open Marketplace Studio
             <ExternalLink className="size-4" aria-hidden="true" />
           </Link>
         </div>
@@ -658,7 +658,7 @@ function MarketplaceSection() {
               >
                 <Icon className="size-6 text-white" />
                 <p className="mt-6 text-xl font-semibold text-white">{marketplace.name}</p>
-                <p className="mt-2 text-sm text-white/70">Ready for listing export</p>
+                <p className="mt-2 text-sm text-white/70">Ready for commerce export</p>
               </motion.div>
             );
           })}
@@ -817,9 +817,9 @@ function FinalCta() {
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.22),transparent_28rem)]" />
         <div className="relative z-10">
-          <p className="eyebrow">Automate content ops</p>
+          <p className="eyebrow">Launch products faster</p>
           <h2 className="mx-auto mt-4 max-w-3xl text-3xl font-semibold text-white sm:text-5xl">
-            Ready to Automate Your E-commerce Content?
+            Ready to Run Commerce Launches from One Workspace?
           </h2>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
@@ -867,7 +867,7 @@ function Footer() {
             Sign In
           </Link>
         </div>
-        <p className="text-sm text-muted-foreground">AI-powered listings for modern commerce.</p>
+        <p className="text-sm text-muted-foreground">Your AI Commerce Workspace.</p>
       </div>
     </footer>
   );

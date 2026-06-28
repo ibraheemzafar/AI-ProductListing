@@ -107,9 +107,9 @@ export async function getListingDetail(listingId: string): Promise<ListingDetail
 async function readErrorMessage(response: Response): Promise<string> {
   try {
     const payload = (await response.json()) as ApiErrorPayload;
-    return payload.error?.message ?? payload.detail ?? 'Listing history failed to load.';
+    return payload.error?.message ?? payload.detail ?? 'Workspace History failed to load.';
   } catch {
-    return 'Listing history failed to load.';
+    return 'Workspace History failed to load.';
   }
 }
 

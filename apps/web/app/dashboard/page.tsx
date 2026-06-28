@@ -31,26 +31,26 @@ export default async function DashboardPage() {
           </Link>
         </Button>
       }
-      description="Scan generated listings, filter by status, and open a focused AI workspace for each product."
+      description="Scan product workflows, filter by status, and open a focused AI workspace for each product."
       email={session.user.email}
-      eyebrow="Dashboard"
-      title="Listing history"
+      eyebrow="AI Workspace"
+      title="Workspace History"
     >
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard
-          detail="Generated listing records in this workspace."
+          detail="Generated product workflows in this workspace."
           icon={Sparkles}
-          label="Total listings"
+          label="Total workflows"
           value={String(history.listings.length)}
         />
         <MetricCard
-          detail="Listings ready for review, copy, SEO, and export."
+          detail="Products ready for review, studio work, and export."
           icon={BarChart3}
           label="Completed"
           value={String(completedCount)}
         />
         <MetricCard
-          detail="Latest generated listing activity."
+          detail="Latest workspace activity."
           icon={Clock3}
           label="Latest"
           value={history.listings[0] ? formatRelativeDate(history.listings[0].createdAt) : 'None'}

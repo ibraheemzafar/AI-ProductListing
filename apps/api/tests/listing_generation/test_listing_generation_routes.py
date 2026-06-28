@@ -16,6 +16,9 @@ from app.main import create_app
 
 
 class FakeListingGenerationService:
+    def __init__(self) -> None:
+        self.deleted_listing_id: str | None = None
+
     async def generate_listing(
         self,
         user_id: str,
@@ -101,6 +104,10 @@ class FakeListingGenerationService:
             "created_at": datetime.now(UTC),
         }
 
+    async def delete_generated_listing(self, user_id: str, listing_id: str) -> None:
+        assert user_id == "user-1"
+        self.deleted_listing_id = listing_id
+
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
@@ -171,6 +178,26 @@ def test_get_generated_listing_detail_returns_related_data(client: TestClient) -
     assert payload["id"] == "listing-1"
     assert payload["analysis"]["product_type"] == "Mug"
     assert payload["listing"]["product_tags"] == ["mug", "ceramic"]
+
+
+def test_delete_generated_listing_returns_no_content(client: TestClient) -> None:
+    response = client.delete("/api/v1/products/listings/listing-1")
+
+    assert response.status_code == 204
+
+
+def test_delete_generated_listing_alias_returns_no_content(client: TestClient) -> None:
+    response = client.delete("/api/v1/listings/listing-1")
+
+    assert response.status_code == 204
+
+
+def test_delete_generated_listing_unversioned_alias_returns_no_content(
+    client: TestClient,
+) -> None:
+    response = client.delete("/api/listings/listing-1")
+
+    assert response.status_code == 204
 
 
 def test_listing_history_requires_authentication() -> None:

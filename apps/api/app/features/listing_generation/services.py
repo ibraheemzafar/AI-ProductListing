@@ -5,7 +5,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from app.core.errors import AppError, NotFoundError
-from app.features.ai_analysis.models import AiRequestLog
+from app.features.ai_analysis.models import AiRequestLog, ProductAnalysisResult
 from app.features.ai_analysis.openai_client import TokenUsage
 from app.features.billing_meter.pricing import UsageInput
 from app.features.billing_meter.service import ChargeResult, RequestMeter
@@ -282,6 +282,17 @@ class ListingGenerationService:
             image=image,
         )
 
+    async def delete_generated_listing(self, user_id: str, listing_id: str) -> None:
+        if not listing_id.strip():
+            raise AppError("Listing id is required")
+
+        deleted = await self._repository.soft_delete_listing_for_user(
+            listing_id=listing_id,
+            user_id=user_id,
+        )
+        if not deleted:
+            raise NotFoundError("Generated listing was not found")
+
     async def _generate_with_retries(self, prompt: str) -> ListingGenerationResult:
         last_error: Exception | None = None
         for attempt in range(self._retry_attempts):
@@ -333,8 +344,8 @@ class ListingGenerationService:
     def _elapsed_ms(self, started_at: float) -> int:
         return round((perf_counter() - started_at) * 1000)
 
-    def _is_valid_product_analysis(self, analysis) -> bool:  # type: ignore[no-untyped-def]
-        return (
+    def _is_valid_product_analysis(self, analysis: ProductAnalysisResult) -> bool:
+        return bool(
             analysis.valid_product
             and analysis.confidence >= MIN_VALID_PRODUCT_CONFIDENCE
         )

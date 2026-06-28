@@ -23,6 +23,8 @@ class GeneratedListing(Base):
     seo_keywords: Mapped[list[str]] = mapped_column(JSON)
     product_tags: Mapped[list[str]] = mapped_column(JSON)
     raw_output: Mapped[dict[str, object]] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(50), default="generated")
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),

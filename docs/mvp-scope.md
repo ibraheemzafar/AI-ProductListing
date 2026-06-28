@@ -1,12 +1,12 @@
-# MVP Scope — AI Product Listing Generator
+# MVP Scope - AI Commerce Workspace
 
 ## Overview
 
-This document defines the Minimum Viable Product (MVP) scope for the AI Product Listing Generator platform.
+This document defines the Minimum Viable Product (MVP) scope for the AI Commerce Workspace platform.
 
 The goal of the MVP is to validate the core business workflow:
 
-> Upload Product Image → Generate AI Listing → Save → Display → Export
+> Upload Product Image -> Generate AI Commerce Assets -> Save -> Display -> Export
 
 The MVP focuses on delivering one production-quality AI workflow with clean architecture, scalability, and maintainability.
 
@@ -16,11 +16,11 @@ The MVP focuses on delivering one production-quality AI workflow with clean arch
 
 ## Primary Goal
 
-Reduce product listing creation time for e-commerce sellers using AI-powered automation.
+Reduce product launch preparation time for e-commerce sellers using AI-powered automation.
 
 ## Secondary Goals
 
-- Validate AI-generated listing quality
+- Validate AI-generated commerce asset quality
 - Validate product-market fit
 - Establish scalable architecture foundation
 - Demonstrate production-grade AI engineering
@@ -64,7 +64,7 @@ Reduce product listing creation time for e-commerce sellers using AI-powered aut
 
 ---
 
-# 3. AI Product Analysis
+# 3. Product Intelligence
 
 ## Features
 - Vision AI analyzes uploaded product image
@@ -84,7 +84,7 @@ Reduce product listing creation time for e-commerce sellers using AI-powered aut
 
 ---
 
-# 4. AI Listing Generation
+# 4. Listing Studio
 
 ## Features
 Generate:
@@ -122,15 +122,15 @@ Generate:
 
 ---
 
-# 6. Dashboard
+# 6. AI Workspace
 
 ## Features
-- View generation history
+- View Workspace History
 - Open previous listings
 - Copy generated content
 
 ## Acceptance Criteria
-- Dashboard loads user history
+- AI Workspace loads user history
 - Users can revisit generated listings
 
 ---
@@ -151,7 +151,7 @@ Generate:
 
 ## Performance
 - AI generation under 30 seconds
-- Dashboard load under 3 seconds
+- AI Workspace load under 3 seconds
 
 ## Security
 - Secure authentication
@@ -265,7 +265,7 @@ The MVP is considered complete when:
 - Users can upload product images
 - AI successfully generates listings
 - Listings are persisted
-- Dashboard displays history
+- AI Workspace displays Workspace History
 - Export functionality works
 - Application is deployed publicly
 

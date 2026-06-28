@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.core.rate_limit import enforce_ai_rate_limit
 from app.features.auth.dependencies import get_current_user
@@ -94,3 +94,38 @@ async def get_generated_listing_detail(
         user_id=current_user.id,
         listing_id=listing_id,
     )
+
+
+@router.delete("/listings/{listing_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_generated_listing(
+    listing_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    listing_service: Annotated[
+        ListingGenerationService,
+        Depends(get_listing_generation_service),
+    ],
+) -> Response:
+    await listing_service.delete_generated_listing(
+        user_id=current_user.id,
+        listing_id=listing_id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+listing_alias_router = APIRouter(prefix="/listings", tags=["listing-generation"])
+
+
+@listing_alias_router.delete("/{listing_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_generated_listing_alias(
+    listing_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    listing_service: Annotated[
+        ListingGenerationService,
+        Depends(get_listing_generation_service),
+    ],
+) -> Response:
+    await listing_service.delete_generated_listing(
+        user_id=current_user.id,
+        listing_id=listing_id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -10,6 +10,7 @@ import {
   PackageCheck,
   Search,
   Sparkles,
+  Trash2,
   WandSparkles,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -23,10 +24,12 @@ import type {
   ScenePreset,
   UploadedProductImage,
 } from '@ai-product-listing/types';
+import { ConfirmationModal } from '@/components/confirmation-modal';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { analyzeProductImage, getAnalysisVersions } from '@/lib/api/analysis';
 import { notifyWalletChanged } from '@/lib/api/billing';
+import { deleteUploadedImage } from '@/lib/api/delete-actions';
 import { generateLifestyleScene } from '@/lib/api/lifestyle-scenes';
 import { generateListing, getListingVersions } from '@/lib/api/listings';
 import { optimizeListingForMarketplace } from '@/lib/api/marketplace-optimizations';
@@ -80,38 +83,38 @@ const workflowSteps: Array<{
   },
   {
     key: 'analysis',
-    label: 'Analyzing product',
+    label: 'Product Intelligence',
     description: 'Extracting product category, attributes, and audience.',
     icon: Search,
   },
   {
     key: 'listing',
-    label: 'Generating listing',
+    label: 'Listing Studio',
     description: 'Creating title, description, tags, and keywords.',
     icon: FileText,
   },
   {
     key: 'seo',
-    label: 'Optimizing SEO',
+    label: 'SEO Studio',
     description: 'Checking listing quality and keyword opportunities.',
     icon: Sparkles,
   },
   {
     key: 'marketplace',
-    label: 'Creating marketplace content',
+    label: 'Marketplace Studio',
     description: 'Preparing reusable ecommerce platform content.',
     icon: PackageCheck,
   },
   {
     key: 'image',
-    label: 'Generating lifestyle images',
+    label: 'Creative Studio',
     description: 'Creating an optional product lifestyle scene.',
     icon: ImageIcon,
   },
   {
     key: 'finalizing',
-    label: 'Finalizing assets',
-    description: 'Saving generated results and opening the listing workspace.',
+    label: 'Finalizing workspace',
+    description: 'Saving generated results and opening the AI workspace.',
     icon: WandSparkles,
   },
 ];
@@ -125,6 +128,7 @@ const invalidProductImageMessage =
 // where all editing, versioning, SEO, and image work lives. No inline versioning here.
 export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
   const router = useRouter();
+  const [uploadedImages, setUploadedImages] = useState<UploadedProductImage[]>(initialImages);
   const [analysisByImageId, setAnalysisByImageId] = useState<
     Record<string, ProductAnalysisResult>
   >({});
@@ -138,6 +142,14 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
   const [includeSeo, setIncludeSeo] = useState(true);
   const [includeMarketplace, setIncludeMarketplace] = useState(true);
   const [includeLifestyleImage, setIncludeLifestyleImage] = useState(false);
+  const [imagePendingDeletion, setImagePendingDeletion] =
+    useState<UploadedProductImage | null>(null);
+  const [isDeletingImage, setIsDeletingImage] = useState(false);
+  const [deleteImageErrorMessage, setDeleteImageErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setUploadedImages(initialImages);
+  }, [initialImages]);
 
   // Surface any previously generated analysis/listing without spending tokens, so the wizard
   // resumes at the right step (and links straight to an existing listing).
@@ -145,7 +157,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
     let cancelled = false;
 
     async function preloadExistingResults() {
-      for (const image of initialImages) {
+      for (const image of uploadedImages) {
         const [analysis] = await getAnalysisVersions(image.id);
         if (cancelled || !analysis) {
           continue;
@@ -165,7 +177,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
     return () => {
       cancelled = true;
     };
-  }, [initialImages]);
+  }, [uploadedImages]);
 
   async function handleGenerateAssets(image: UploadedProductImage) {
     if (activeImageId) {
@@ -185,22 +197,22 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
     });
 
     try {
-      setStepStatus(image.id, 'analysis', 'running', 'Analyzing product image.');
+      setStepStatus(image.id, 'analysis', 'running', 'Building Product Intelligence.');
       const analysis = analysisByImageId[image.id] ?? (await analyzeProductImage(image.id));
       setAnalysisByImageId((current) => ({ ...current, [image.id]: analysis }));
       notifyWalletChanged();
-      setStepStatus(image.id, 'analysis', 'completed', 'Product analysis completed.');
+      setStepStatus(image.id, 'analysis', 'completed', 'Product Intelligence completed.');
 
-      setStepStatus(image.id, 'listing', 'running', 'Generating listing copy.');
+      setStepStatus(image.id, 'listing', 'running', 'Creating Listing Studio copy.');
       const listing =
         listingByImageId[image.id] ?? (await generateListing(analysis.id));
       setListingByImageId((current) => ({ ...current, [image.id]: listing }));
       notifyWalletChanged();
       setWorkflowListingId(image.id, listing.id);
-      setStepStatus(image.id, 'listing', 'completed', 'Listing generated.');
+      setStepStatus(image.id, 'listing', 'completed', 'Listing Studio assets generated.');
 
       if (includeSeo) {
-        await runOptionalStep(image.id, 'seo', 'SEO analysis completed.', () =>
+        await runOptionalStep(image.id, 'seo', 'SEO Studio analysis completed.', () =>
           analyzeListingSeo(listing.id),
         );
       } else {
@@ -211,7 +223,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
         await runOptionalStep(
           image.id,
           'marketplace',
-          'Marketplace content created.',
+          'Marketplace Studio content created.',
           () => optimizeListingForMarketplace(listing.id, defaultMarketplace),
         );
       } else {
@@ -222,17 +234,17 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
         await runOptionalStep(
           image.id,
           'image',
-          'Lifestyle image generated.',
+          'Creative Studio image generated.',
           () => generateLifestyleScene(listing.id, defaultScenePreset, ''),
         );
       } else {
         setStepStatus(image.id, 'image', 'skipped', 'Lifestyle image skipped.');
       }
 
-      setStepStatus(image.id, 'finalizing', 'running', 'Finalizing generated assets.');
+      setStepStatus(image.id, 'finalizing', 'running', 'Finalizing workspace assets.');
       notifyWalletChanged();
-      setStepStatus(image.id, 'finalizing', 'completed', 'AI assets are ready.');
-      showToast('AI assets generated.');
+      setStepStatus(image.id, 'finalizing', 'completed', 'AI commerce assets are ready.');
+      showToast('AI commerce assets generated.');
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'AI asset generation failed.';
@@ -336,6 +348,32 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
     window.setTimeout(() => setToastMessage(null), 2500);
   }
 
+  async function handleDeleteUploadedImage() {
+    if (!imagePendingDeletion) {
+      return;
+    }
+
+    const image = imagePendingDeletion;
+    setIsDeletingImage(true);
+    setDeleteImageErrorMessage(null);
+    try {
+      await deleteUploadedImage(image.id);
+      setUploadedImages((current) => current.filter((item) => item.id !== image.id));
+      setAnalysisByImageId((current) => omitKey(current, image.id));
+      setListingByImageId((current) => omitKey(current, image.id));
+      setWorkflowByImageId((current) => omitKey(current, image.id));
+      setErrorByImageId((current) => omitKey(current, image.id));
+      setImagePendingDeletion(null);
+      showToast('Uploaded image deleted.');
+    } catch (error) {
+      setDeleteImageErrorMessage(
+        error instanceof Error ? error.message : 'Could not delete image. Please try again.',
+      );
+    } finally {
+      setIsDeletingImage(false);
+    }
+  }
+
   function isInvalidProductImageError(message: string) {
     return message === invalidProductImageMessage;
   }
@@ -351,10 +389,25 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
         </div>
       ) : null}
 
+      {imagePendingDeletion ? (
+        <ConfirmationModal
+          title="Delete uploaded image"
+          description="This will remove the uploaded image from Product Intake if it is not linked to a listing."
+          confirmLabel="Delete image"
+          isConfirming={isDeletingImage}
+          errorMessage={deleteImageErrorMessage}
+          onCancel={() => {
+            setImagePendingDeletion(null);
+            setDeleteImageErrorMessage(null);
+          }}
+          onConfirm={() => void handleDeleteUploadedImage()}
+        />
+      ) : null}
+
       <section className="glass-panel p-5">
-        <h2 className="text-lg font-semibold text-white">Upload product images</h2>
+        <h2 className="text-lg font-semibold text-white">Product Intake</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Preview images before uploading them to your product workspace.
+          Preview images before sending them into your AI Commerce Workspace.
         </p>
         <div className="mt-5">
           <UploadForm onUploadComplete={() => router.refresh()} />
@@ -362,35 +415,35 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
       </section>
 
       <section className="glass-panel p-5">
-        <h2 className="text-lg font-semibold text-white">Uploaded images</h2>
+        <h2 className="text-lg font-semibold text-white">Workspace queue</h2>
         <div className="mt-1 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Generate the full asset workflow from each uploaded image with one primary action.
+            Generate the full commerce workflow from each uploaded image with one primary action.
           </p>
           <div className="grid gap-2 rounded-lg border border-white/10 bg-background/45 p-3 text-sm sm:grid-cols-3">
             <WorkflowOption
               checked={includeSeo}
               disabled={Boolean(activeImageId)}
-              label="SEO Optimization"
+              label="SEO Studio"
               onChange={setIncludeSeo}
             />
             <WorkflowOption
               checked={includeMarketplace}
               disabled={Boolean(activeImageId)}
-              label="Marketplace Copy"
+              label="Marketplace Studio"
               onChange={setIncludeMarketplace}
             />
             <WorkflowOption
               checked={includeLifestyleImage}
               disabled={Boolean(activeImageId)}
-              label="Lifestyle Images"
+              label="Creative Studio"
               onChange={setIncludeLifestyleImage}
             />
           </div>
         </div>
         <div className="mt-5 grid gap-3">
-          {initialImages.length > 0 ? (
-            initialImages.map((image) => {
+          {uploadedImages.length > 0 ? (
+            uploadedImages.map((image) => {
               const analysis = analysisByImageId[image.id];
               const listing = listingByImageId[image.id];
               const workflow = workflowByImageId[image.id];
@@ -418,10 +471,10 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
                       </p>
                       <p className="mt-3 text-sm leading-6 text-muted-foreground">
                         {listing
-                          ? 'Listing assets are ready to review.'
+                          ? 'Commerce assets are ready to review.'
                           : analysis
-                            ? 'Product analysis is ready. Generate listing assets next.'
-                            : 'Ready to generate AI assets.'}
+                            ? 'Product Intelligence is ready. Generate studio assets next.'
+                            : 'Ready to generate AI commerce assets.'}
                       </p>
                       {workflow?.message ? (
                         <p className="mt-2 text-xs text-muted-foreground">{workflow.message}</p>
@@ -472,7 +525,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
                       ) : (
                         <Sparkles className="mr-2 size-4" aria-hidden="true" />
                       )}
-                      {isGeneratingAssets ? 'Generating assets' : 'Generate AI Assets'}
+                      {isGeneratingAssets ? 'Generating assets' : 'Generate Commerce Assets'}
                     </Button>
                     {listing ? (
                       <>
@@ -481,12 +534,24 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
                         </p>
                         <Button asChild>
                           <Link href={`/dashboard/listings/${listing.id}`}>
-                            View listing
+                            Open workspace
                             <ArrowRight className="ml-2 size-4" aria-hidden="true" />
                           </Link>
                         </Button>
                       </>
                     ) : null}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setImagePendingDeletion(image);
+                        setDeleteImageErrorMessage(null);
+                      }}
+                      disabled={Boolean(activeImageId)}
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                      Delete image
+                    </Button>
                   </div>
                 </div>
               );
@@ -495,7 +560,7 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
             <div className="rounded-lg border border-dashed border-white/15 bg-white/[0.03] p-8 text-center">
               <p className="text-sm font-medium text-white">No uploaded images yet.</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Uploaded assets will appear here for AI analysis.
+                Uploaded assets will appear here for Product Intelligence.
               </p>
             </div>
           )}
@@ -503,6 +568,12 @@ export function UploadWorkspace({ initialImages }: UploadWorkspaceProps) {
       </section>
     </div>
   );
+}
+
+function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const next = { ...record };
+  delete next[key];
+  return next;
 }
 
 function WorkflowOption({
@@ -536,7 +607,7 @@ function InvalidProductImagePanel() {
       <p className="font-semibold">No recognizable product was found.</p>
       <p className="mt-1 leading-5 text-red-100/85">
         Upload a clear image with one primary product. Placeholder graphics, blank images,
-        screenshots, logo-only images, or text-only images cannot be used for listing generation.
+        screenshots, logo-only images, or text-only images cannot be used for commerce asset generation.
       </p>
     </div>
   );

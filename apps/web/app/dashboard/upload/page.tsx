@@ -16,10 +16,10 @@ export default async function DashboardUploadPage() {
 
   return (
     <DashboardShell
-      description="Drop product photography, preview selections, then send clean image assets into the AI analysis workflow."
+      description="Drop product photography, preview selections, then send clean image assets into Product Intelligence and the connected studios."
       email={session.user.email}
-      eyebrow="AI Intake"
-      title="Product image upload"
+      eyebrow="Product Intake"
+      title="Upload product images"
     >
       <UploadWorkspace initialImages={imageList.images} />
     </DashboardShell>

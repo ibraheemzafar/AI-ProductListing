@@ -63,9 +63,9 @@ export async function getAnalysisVersions(
 async function readErrorMessage(response: Response): Promise<string> {
   try {
     const payload = (await response.json()) as ApiErrorPayload;
-    return payload.error?.message ?? payload.detail ?? 'Product analysis failed. Please try again.';
+    return payload.error?.message ?? payload.detail ?? 'Product Intelligence failed. Please try again.';
   } catch {
-    return 'Product analysis failed. Please try again.';
+    return 'Product Intelligence failed. Please try again.';
   }
 }
 
